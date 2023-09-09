@@ -1,13 +1,15 @@
 # the following are the helper functions that will be used to ingest the data from sources in Aappendix A
 
 import requests
-import bs4
+from bs4 import BeautifulSoup
+import wget 
+import zipfile 
 import json
 import os
 import pandas as pd
 from io import StringIO
-import wget
-import zipfile
+
+
 
 
 def census_data_ingester(url:str):
@@ -26,7 +28,7 @@ def census_data_ingester(url:str):
         TypeError: if n is not a string.
     """
     
-    # code to ingest from url to be added
+    # code to ingest from url to be added(work being done on census website)
     #---
     
     # transform ingested data
@@ -69,6 +71,62 @@ def ffiec_flat_file_extractor(url:str)-> Dataset[str,str,str,...,str]:
     #--
     
     return CensusFlatFile2022
+
+
+
+def hdma_helper_fcn(url:str): 
+    
+    """Used to locate and download all zip files on hdma 2022 page.
+    
+    Args: 
+        url: url of HDMA page with zip file datasets on it. 
+        
+    Returns:
+        A dictionary of dataframes. One for each ingested csv file from the HDMA website.
+        
+    Raises:
+        TypeError: if url is not a string.
+    """
+    
+    # NOTE: page associated with HDMA url uses javascript so http request made will need to match http request being made from
+    # javascript(https://stackoverflow.com/questions/26393231/using-python-requests-with-javascript-pages). Additionally,
+    # the extracted Loan/Application Records (LAR) csv is greater than 5 gigabytes so working to find other method 
+    # of storing file. When analyzing the LAR dataset, using the dask library will work specificlly dask.dataframe().
+    
+    snpshot_page_html = requests.get(url2)  
+    snpshot_page_bs = BeautifulSoup(snpshot_page_html.text, 'html') # convert result from requests to BeautifulSoup object
+    list_of_datafile_urls = snpshot_page_bs.find_all("ul") # return all ul tags as a list('ul' tag is location of datafiles)
+    dict_of_dfs = {}
+    for datafile_url in list_of_datafiles_urls: 
+        if "csv.zip" in datafile_url: # only want csv zip files
+            filename = wget.download(datafile_url)
+            zip_ref = zipfile.ZipFile(filename, 'r')
+            current_dir = os.getcwd()
+            zip_ref.extractall(current_dir) # extract zip file contents to current directory
+            dict_of_dfs[file] = pd.read_csv(filename, nrows = 10) #only read in 10 rows to start
+    return dict_of_dfs
+    
+
+
+# Potential future process 
+# Automatically download datafiles by providing main page url and names of clickable links that lead to page with downloadable files
+# on it. Use Selenium to automate clicks needed to land on page with downloadable files then download the files using above function.
+
+# Parameters in function:
+
+# main_page_url (str) : url of main page
+# click_1 (str) : name of clickable link on page 
+# click_2 (str) : name of clickable link on page
+# click_3 (str) : name of clickable link on page
+# path_for_download_file (str) : url path for downloadable file i.e. zip file etc
+
+# Example
+# 
+# main_page_url = https://www.consumerfinance.gov/data-research/hmda/
+# str: click_1 = "See recent data and summaries"
+# str: click_2 = "Snapshot National Loan-Level Dataset"
+# str: click_3 = 2022
+# str: path_for_download_file = https://s3.amazonaws.com/cfpb-hmda-public/prod/snapshot-data/2022/2022_public_lar_csv.zip
 
 
 
