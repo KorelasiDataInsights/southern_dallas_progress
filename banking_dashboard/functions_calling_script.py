@@ -7,4 +7,7 @@ census_data = census_data_ingester()
 ffiec_data = ffiec_flat_file_extractor()
 
 #ingest files from HDMA website
-hdma_dict = hdma_helper_fcn()
+hdma_dict = hdma_data_ingester()
+
+hdma_data = hdma_data_merger(hdma_dict)
+
