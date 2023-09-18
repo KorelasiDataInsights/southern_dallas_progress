@@ -187,7 +187,7 @@ def hdma_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     return hdma_dict
 
 
-def hdma_data_merger(dictionary:dict[pd.core.frame.DataFrame])->pd.core.frame.DataFrame:
+def hdma_data_merger(hdma_dict_ipt:dict[pd.core.frame.DataFrame])->pd.core.frame.DataFrame:
     
     """Takes in hdma dictionary of dataframes, merges each dataframe in the dictionary, and returns merged dictionaries.
     
@@ -200,13 +200,11 @@ def hdma_data_merger(dictionary:dict[pd.core.frame.DataFrame])->pd.core.frame.Da
     Raises:
         TypeError: if input is not a dictionary of dataframes is not a string.
     """
-    lar_ts = pd.merge(hdma_dict["lar_df"], hdma_dict["ts_df"], how = 'inner') # unique identifier: lei(legal entity identifier)
-    lar_ts_panel = pd.merge(lar_ts, hdma_dict["panel_df"], how = 'inner') # unique identifier: tax_id
-    lar_ts_panel_msamd = pd.merge(lar_ts_panel, hdma_dict["msamd_df"],left_on = ['derived_msa_md'], right_on = ['msa_md'], how = 'inner') # unique identifiers: derived_msa_md, msa_md
+    lar_ts = pd.merge(hdma_dict_ipt["lar_df"], hdma_dict_ipt["ts_df"], how = 'inner') # unique identifier: lei(legal entity identifier)
+    lar_ts_panel = pd.merge(lar_ts, hdma_dict_ipt["panel_df"], how = 'inner') # unique identifier: tax_id
+    lar_ts_panel_msamd = pd.merge(lar_ts_panel, hdma_dict_ipt["msamd_df"],left_on = ['derived_msa_md'], right_on = ['msa_md'], how = 'inner') # unique identifiers: derived_msa_md, msa_md
 
-    
     return lar_ts_panel_msamd
-
 
 # Potential future process 
 # Automatically download datafiles by providing main page url and names of clickable links that lead to page with downloadable files
