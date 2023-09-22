@@ -228,3 +228,242 @@ def hdma_data_merger(hdma_dict_ipt:dict[pd.core.frame.DataFrame])->pd.core.frame
 
 
 
+def cra_data_ingester(url:str)-> dict[pd.core.frame.DataFrame]:
+
+    """Used to read in all necessary zipfiles from ffiec website, unzip them and read in all .dat files.
+    
+    Args: 
+        url: url of CRA zip file. 
+        
+    Returns:
+        A dictionary of dataframes. One for each ingested file from the CRA zip file.
+        
+    Raises:
+        TypeError: if url is not a string.
+    """
+
+    url = 'https://www.ffiec.gov/cra/xls/21exp_aggr.zip'
+    r = requests.get(url, allow_redirects = True)
+    open('21exp_aggr.zip','wb').write(r.content)
+    #zip_ref = zipfile.ZipFile('21exp_aggr.zip', 'r') #zipfile not zip file error
+
+    #def fixed width file mappings
+    a_1_1_fields  = ["Table ID","Activity Year", "Loan Type", " Action Taken Type", "State", "County", "MSA/MD", "Census Tract", 
+    "Split County Indicator", "Population Classification", "Income Group Total", "Report Level",
+    " Number of Small Business Loans Originated with Loan Amount at Origination < or = to $100,000", 
+    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination < or = to $100,000",
+    "Number of Small Business Loans Originated with Loan Amount at Origination > 100,000 and < or = to $250,000",
+    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination > $100,000 and < or = to $250,000",
+    "Number of Small Business Loans Originated with Loan Amount at Origination > $250,000 and < or = to $1,000,000", 
+    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination > $250,000 and < or = to $1,000,000" ,
+    " Number of Loans Originated to Small Businesses with Gross Annual Revenues < or = to $1 million",
+    "Total Loan Amount of Loans Originated to Small Businesses with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    a_1_1_widths = [5,4,1,1,2,3,5,7,1,1,3,3,10,10,10,10,10,10,10,10,29]
+    
+    a_1_1a_fields = ["Table ID","Activity Year", "Loan Type", " Action Taken Type", "State", "County", "MSA/MD", "Respondent ID", "Agency Code",
+                     "Number of Lenders", "Report Level", "Number of Small Business Loans", "Total Loan Amount of Small Business Loans",
+                     "Number of loans to Small Businesses with Gross Annual Revenues < or = to $1 million",
+                     "Total Loan Amount of loans to Small Businesses with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    a_1_1a_widths = [5,4,1,1,2,3,5,10,1,5,3,10,10,10,10,65]
+    
+    a_1_2_fields = ["Table ID","Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", "Census Tract", "Split County Indicator", 
+    "Population Classification", "Income Group Total", "Report Level", 
+    "Number of Small Business Loans Purchased with Loan Amount at Origination < or = to $100,000",
+    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination < or = to $100,000", 
+    "Number of Small Business Loans Purchased with Loan Amount at Origination > 100,000 and < or = to $250,000", 
+    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination > $100,000 and < or = to $250,000", 
+    "Number of Small Business Loans Purchased with Loan Amount at Origination > $250,000 and < or = to $1,000,000", 
+    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination > $250,000 and < or = to $1,000,000", 
+    "Number of Small Business Loans Purchased with Gross Annual Revenues < or = to $1 million", 
+    "Total Loan Amount of Small Business Loans Purchased with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    
+    a_1_2_widths = [5,4,1,1,2,3,5,7,1,1,3,3,10,10,10,10,10,10,10,10,29]
+    
+    
+    a_1_2a_fields = ["Table ID","Activity Year", "Loan Type", " Action Taken Type", "State", "County", "MSA/MD", "Respondent ID",
+    " Agency Code", " Number of Lenders", "Report Level", "Number of Small Business Loans", "Total Loan Amount of Small Business Loans", 
+    "Number of loans to Small Businesses with Gross Annual Revenues < or = to $1 million",
+    "Total Loan Amount of loans to Small Businesses with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    a_1_2a_widths = [5,4,1,1,2,3,5,10,1,5,3,10,10,10,10,65]
+    
+    
+    a_2_1_fields = ["Table ID","Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", "Census Tract", "Split County Indicator", 
+    "Population Classification", "Income Group Total", "Report Level", "Number of Small Farm Loans Originated with Loan Amount at Origination < $100,000", 
+    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination < $100,000", 
+    "Number of Small Farm Loans Originated with Loan Amount at Origination > 100,000 and < or = to $250,000",
+    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination > $100,000 and < or = to $250,000", 
+    "Number of Small Farm Loans Originated with Loan Amount at  Origination > $250,000 and < or = to $500,000", 
+    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination > $250,000 and < or = to $500,000",
+    "Number of Loans Originated to Small Farms with Gross Annual Revenues < or = to $1 million", 
+    "Total Loan Amount of Loans Originated to Small Farms with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    
+    a_2_1_widths = [5,4,1,1,2,3,5,7,1,1,3,3,10,10,10,10,10,10,10,10,29]
+    
+    
+    a_2_1a_fields = ["Table ID","Activity Year", "Loan Type", " Action Taken Type", "State", "County", "MSA/MD", "Respondent ID", " Agency Code", 
+    "Number of Lenders", "Report Level", "Number of Small Farm Loans", "Total Loan Amount of Small Farm Loans",
+    "Number of loans to Small Farms with Gross Annual Revenues < or = to $1 million",
+    "Total Loan Amount of loans to Small Farms with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    a_2_1a_widths = [5,4,1,1,2,3,5,10,1,5,3,10,10,10,10,65]
+    
+    a_2_2_fields = ["Table ID","Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", "Census Tract", "Split County Indicator",
+    "Population Classification", "Income Group Total", "Report Level",
+    "Number of Small Farm Loans Purchased with Loan Amount at Origination < or = to $100,000",
+    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination < or = to $100,000", 
+    "Number of Small Farm Loans Purchased with Loan Amount at Origination > 100,000 and < or = to $250,000", 
+    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination > $100,000 and < or = to $250,000", 
+    "Number of Small Farm Loans Purchased with Loan Amount at Origination > $250,000 and < or = to $500,000", 
+    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination > $250,000 and < or = to $500,000", 
+    "Number of Small Farm Loans Purchased with Gross Annual Revenues < or = to $1 million",
+    "Total Loan Amount of Small Farm Loans Purchased with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    a_2_2_widths = [5,4,1,1,2,3,5,7,1,1,3,3,10,10,10,10,10,10,10,10,29]
+    
+    a_2_2a_fields = ["Table ID","Activity Year", "Loan Type", " Action Taken Type", "State", "County", "MSA/MD", "Respondent ID", " Agency Code", 
+    "Number of Lenders", "Report Level", "Number of Small Farm Loans", "Total Loan Amount of Small Farm Loans",
+    "Number of loans to Small Farms with Gross Annual Revenues < or = to $1 million", 
+    "Total Loan Amount of loans to Small Farms with Gross Annual Revenues < or = to $1 million", "Filler"]
+    
+    
+    a_2_2a_widths = [5,4,1,1,2,3,5,10,1,5,3,10,10,10,10,65]
+    
+    
+    d_1_1_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "Action Taken Type", " State", "County", "MSA/MD", 
+                    "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Population Classification", 
+                    "Income Group Total", "Report Level",
+                    "Number of Small Business Loans Originated with Loan Amount at Origination < or = to $100,000", 
+                    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination < or = to $100,000", 
+                    "Number of Small Business Loans Originated with Loan Amount at Origination > 100,000 and < or = to $250,000",
+                    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination > $100,000 and < or = to $250,000", 
+                    "Number of Small Business Loans Originated with Loan Amount at Origination > $250,000 and < or = to $1,000,000", 
+                    "Total Loan Amount of Small Business Loans Originated with Loan Amount at Origination > $250,000 and < or = to $1,000,000",
+                    " Number of Loans Originated to Small Businesses with Gross Annual Revenues < $1 million", 
+                    "Total Loan Amount of Loans Originated to Small Businesses with Gross Annual Revenues < or = to $1 million", 
+                    "Number of Small Business Loans Originated Reported as Affiliate Loans", 
+                    "Total Loan Amount of Small Business Loans Originated Reported as Affiliate Loans"]
+    
+    d_1_1_widths = [5,10,1,4,1,1,2,3,5,4,1,1,1,3,3,10,10,10,10,10,10,10,10,10,10]
+    
+    
+    d_1_2_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", 
+                    "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Population Classification", 
+                    "Income Group Total", "Report Level",
+                    "Number of Small Business Loans Purchased with Loan Amount at Origination < or = to $100,000",
+                    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination < or = to $100,000", 
+                    "Number of Small Business Loans Purchased with Loan Amount at Origination > 100,000 and < or = to $250,000",
+                    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination > $100,000 and < or = to $250,000",
+                    "Number of Small Business Loans Purchased with Loan Amount at Origination > $250,000 and <or = to $1,000,000", 
+                    "Total Loan Amount of Small Business Loans Purchased with Loan Amount at Origination > $250,000 and < $1,000,000", 
+                    "Number of Small Business Loans Purchased with Gross Annual Revenues < or = to $1 million", 
+                    "Total Loan Amount Small Business Loans Purchased with Gross Annual Revenues < or = to $1 million", 
+                    "Number of Small Business Loans Purchased Reported as Affiliate Loans",
+                    "Total Loan Amount of Small Business Loans Purchased Reported as Affiliate Loans"]
+    
+    d_1_2_widths = [5,10,1,4,1,1,2,3,5,4,1,1,1,3,3,10,10,10,10,10,10,10,10,10,10]
+    
+    
+    
+    d_2_1_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", 
+                    "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Population Classification", 
+                    "Income Group Total", "Report Level", 
+                    "Number of Small Farm Loans Originated with Loan Amount at Origination < or = to $100,000", 
+                    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination < or = to $100,000",
+                    "Number of Small Farm Loans Originated with Loan Amount at Origination > 100,000 and < or = to $250,000",
+                    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination > $100,000 and < $250,000", 
+                    "Number of Small Farm Loans Originated with Loan Amount at Origination > $250,000 and < or = to $500,000", 
+                    "Total Loan Amount of Small Farm Loans Originated with Loan Amount at Origination > $250,000 and < or = to $500,000",
+                    "Number of Loans Originated to Small Farms with Gross Annual Revenues < or = to $1 million", 
+                    "Total Loan Amount of Loans Originated to Small Farms with Gross Annual Revenues < $1 million",
+                    "Number of Small Farm Loans Originated Reported as Affiliate Loans",
+                    "Total Loan Amount of Small Farm Originated Loans Reported as Affiliate Loans"]
+    
+    d_2_1_widths = [5,10,1,4,1,1,2,3,5,4,1,1,1,3,3,10,10,10,10,10,10,10,10,10,10]
+    
+    
+    
+    d_2_2_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", 
+                    "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Population Classification", 
+                    "Income Group Total", "Report Level",
+                    "Number of Small Farm Loans Purchased with Loan Amount at Origination < or = to $100,000", 
+                    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination < or = to $100,000", 
+                    "Number of Small Farm Loans Purchased with Loan Amount at Origination > 100,000 and < or = to $250,000",
+                    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination > $100,000 and < or = to $250,000", 
+                    "Number of Small Farm Loans Purchased with Loan Amount at Origination > $250,000 and < $500,000", 
+                    "Total Loan Amount of Small Farm Loans Purchased with Loan Amount at Origination > $250,000 and < $500,000", 
+                    "Number of Small Farm Loans Purchased with Gross Annual Revenues < or = to $1 million",
+                    "Total Loan Amount of Small Farm Loans Purchased with Gross Annual Revenues < $1 million", 
+                    "Number of Small Farm Loans Purchased Reported as Affiliate Loans",
+                    "Total Loan Amount of Small Farm Loans Purchased Reported as Affiliate Loans"]
+    
+    d_2_2_widths = [5,10,1,4,1,1,2,3,5,4,1,1,1,3,3,10,10,10,10,10,10,10,10,10,10]
+    
+    
+    
+    d3_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "State", "County", "MSA/MD", 
+          "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Report Level", 
+          "Number of Small Business Loans Originated", "Total Loan Amount of Small Business Loans Originated", 
+          "Number of Loans Originated to Small Businesses with Gross Annual Revenues < or = to $1 million",
+          "Total Loan Amount of Loans Originated to Small Businesses with Gross Annual Revenues < or = to $1 million", 
+          " Number of Small Business Loans Purchased", "Total Loan Amount of Small Business Loans Purchased", "Filler"]
+    
+    d3_widths = [5,10,1,4,1,2,3,5,4,1,1,2,10,10,10,10,10,10,46]
+    
+    
+    
+    d4_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", "State", "County", "MSA/MD", 
+          "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Report Level",
+          "Number of Small Farm Loans Originated", "Total Loan Amount of Small Farm Loans Originated",
+          "Number of Loans Originated to Small Farms with Gross Annual Revenues < or = to $1 million", 
+          "Total Loan Amount of Loans Originated to Small Farms with Gross Annual Revenues < or = to $1 million",
+          " Number of Small Farm Loans Purchased", "Total Loan Amount of Small Farm Loans Purchased", "Filler"]
+    
+    
+    d4_widths = [5,10,1,4,1,2,3,5,4,1,1,2,10,10,10,10,10,10,46]
+    
+    
+    d5_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year", "Loan Type", " Number of Loans",
+                "Total Loan Amount of Loans", "Number of Loans Reported as Affiliate Loans",
+                 "Total Loan Amount of Loans Reported as Affiliate Loans", "Action Type", "Filler"]
+    
+    
+    d5_widths = [5,10,1,4,1,10,10,10,10,1,83]
+    
+    
+    d6_fields = ["Table ID","Respondent ID", "Agency Code", "Activity Year","State", "County", "MSA/MD", "Census Tract",
+                 "Assessment Area Number", "Partial County Indicator", "Split County Indicator", "Population Classification", 
+                 "Income Group", "Loan Indicator", "Filler"]
+    
+    d6_widths = [5,10,1,4,2,3,5,7,4,1,1,1,3,1,96]
+    
+    fwf_dimensions_dict = {'cra2021_Aggr_A11.dat':[a_1_1_widths,a_1_1_fields],
+                           'cra2021_Aggr_A11a.dat':[a_1_1a_widths,a_1_1a_fields],
+                           'cra2021_Aggr_A12.dat':[a_1_2_widths,a_1_2_fields],
+                           'cra2021_Aggr_A12a.dat':[a_1_2a_widths,a_1_2a_fields],
+                           'cra2021_Aggr_A21.dat':[a_2_1_widths,a_2_1_fields],
+                           'cra2021_Aggr_A21a.dat':[a_2_1a_widths,a_2_1a_fields],
+                           'cra2021_Aggr_A22.dat':[a_2_2_widths,a_2_2_fields],
+                           'cra2021_Aggr_A22a.dat':[a_2_2a_widths,a_2_2a_fields],
+                           'cra2021_Aggr_D11.dat':[d_1_1_widths,d_1_1_fields],
+                           'cra2021_Discl_D12.dat':[d_1_2_widths,d_1_2_fields],
+                           'cra2021_Discl_D21.dat':[d_2_1_widths,d_2_1_fields],
+                           'cra2021_Discl_D22.dat':[d_2_2_widths,d_2_2_fields],
+                           'cra2021_Discl_D3.dat':[d3_widths,d3_fields],
+                           'cra2021_Discl_D4.dat':[d4_widths,d4_fields],
+                           'cra2021_Discl_D5.dat':[d5_widths,d5_fields],
+                           'cra2021_Discl_D6.dat':[d6_widths,d6_fields]}
+    
+    df_dict = {}
+    for i in os.listdir():
+        if i in fwf_dimensions_dict: 
+            df_dict[i] = pd.read_fwf(i, widths = fwf_dimensions_dict[i][0], header = None, names = fwf_dimensions_dict[i][1])
+
+    return df_dict
+        
+    
+    
