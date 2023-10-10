@@ -1907,7 +1907,8 @@ def changec_label_adder(file_name:str)->dict[str:str]:
     for original_field in col_name_replace_map.keys():
         if "CHANGEC" in original_field: 
             col_name_replace_map[original_field] = col_name_replace_map[original_field] + " " + original_field.split('CHANGEC')[1]
-    return col_name_replace_map     
+    col_name_replace_map['FED_RSSD'] = 'Federal Reserve ID Number 2'
+    return col_name_replace_map  
 
 def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[str:str])->pd.core.frame.DataFrame:
     """Used to read in institution data for those created on or before 12/31/2023 and are in dallas, collins or tarrant county.
@@ -1974,31 +1975,31 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
     institutions_df['Conservatorship'] = institutions_df['Conservatorship'].map({1:"Yes",0:"No"})
     institutions_df['CSA Area Flag'] = institutions_df['CSA Area Flag'].map({1:"Yes",0:"No"})
     institutions_df = institutions_df.astype({'Federal Reserve ID Number':str})
-    # institutions_df['Federal Reserve ID Number'] = institutions_df['Federal Reserve ID Number'].map({"1":"Boston",
-    #                                                                                                  "2":"New York",
-    #                                                                                                  "3":"Philadelphia",
-    #                                                                                                  "4":"Cleveland",
-    #                                                                                                  "5":"Richmond",
-    #                                                                                                  "6":"Atlanta",
-    #                                                                                                  "7":"Chicago",
-    #                                                                                                  "8":"St. Louis",
-    #                                                                                                  "9":"Minneapolis",
-    #                                                                                                  "10":"Kansas city",
-    #                                                                                                  "11":"Dallas", 
-    #                                                                                                  "12":"San Francisco"})
+    institutions_df['Federal Reserve ID Number'] = institutions_df['Federal Reserve ID Number'].map({"1":"Boston",
+                                                                                                     "2":"New York",
+                                                                                                     "3":"Philadelphia",
+                                                                                                     "4":"Cleveland",
+                                                                                                     "5":"Richmond",
+                                                                                                     "6":"Atlanta",
+                                                                                                     "7":"Chicago",
+                                                                                                     "8":"St. Louis",
+                                                                                                     "9":"Minneapolis",
+                                                                                                     "10":"Kansas city",
+                                                                                                     "11":"Dallas", 
+                                                                                                     "12":"San Francisco"})
     institutions_df['Primary Regulator'] = institutions_df['Primary Regulator'].map({"OCC":"Office of the Comptroller of Currency",
                                                                                      "FDIC":"Federal Deposit Insurance Corporation",
                                                                                      "FRB":"Federal Reserve Board",
                                                                                      "NCUA":"National Credit Union Association",
                                                                                      "OTS":"Office of Thrift Supervision"})
-    # institutions_df['Supervisory Region Number'] = institutions_df['Supervisory Region Number'].map({"02":"New York",
-    #                                                                                                  "05":"Atlanta",
-    #                                                                                                  "09":"Chicago",
-    #                                                                                                  "11":"Kansas City",
-    #                                                                                                  "13"::"Dallas",
-    #                                                                                                  "14":"San Francisco",
-    #                                                                                                  "16":"Office of Complex Financial Institutions (CFI)"})
-    # institutions_df['Trust Powers'] = institutions_df['Trust Powers'].map({"00":"Trust Powers Not Known",
+    institutions_df['Supervisory Region Number'] = institutions_df['Supervisory Region Number'].map({2:"New York",
+                                                                                                     5:"Atlanta",
+                                                                                                     9:"Chicago",
+                                                                                                     11:"Kansas City",
+                                                                                                     13:"Dallas",
+                                                                                                     14:"San Francisco",
+                                                                                                     16:"Office of Complex Financial Institutions (CFI)"})
+    # institutions_df['Trust Powers'] = institutions_df['Trust Powers'].map({00:"Trust Powers Not Known",
     #                                                                        "10":"Full Trust Powers Granted",
     #                                                                        "11":"Full Trust Powers Granted, Exercised",
     #                                                                        "12":"Full Trust Powers Granted, Not Exercised",
