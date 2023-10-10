@@ -46,7 +46,7 @@ def census_data_ingester(url:str = "url", file_name:str = "file") :
     data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
     return data
 
-def ffiec_flat_file_extractor(file_url:str, data_dict_url:str)->pd.core.frame.DataFrame:
+def ffiec_flat_file_extractor(file:str, data_dict:str)->pd.core.frame.DataFrame:
     """Used to extract csv files from ffiec website and convert into pandas dataframe.
     
     Args:
@@ -62,10 +62,10 @@ def ffiec_flat_file_extractor(file_url:str, data_dict_url:str)->pd.core.frame.Da
     # zip_ref = zipfile.ZipFile(filename, 'r')
     # current_dir = os.getcwd()
     # unzipped = zip_ref.extractall(current_dir)
-    data_dictionary = pd.read_excel('FFIEC_Census_File_Definitions_26AUG22.xlsx', sheet_name = 'Data Dictionary')
+    data_dictionary = pd.read_excel(data_dict, sheet_name = 'Data Dictionary')
     data_dictionary = data_dictionary[data_dictionary['Index']>=0]
     new_ffiec_cols = data_dictionary['Description']
-    data = pd.read_csv('CensusFlatFile2022.csv', nrows = 8000, header = None)
+    data = pd.read_csv(file, nrows = 8000, header = None)
     old_ffiec_cols = data.columns
     replacement_map = dict(zip(old_ffiec_cols,new_ffiec_cols))
     data.rename(columns = replacement_map, inplace=True)
