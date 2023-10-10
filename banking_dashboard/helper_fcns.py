@@ -11,14 +11,14 @@ import requests
 import re
 from datetime import datetime
 
-def census_data_ingester(url:str = "url", file_name:str = "file") :
-    """"
-    Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
+# census tract helper function
+def census_data_ingester(file_name:str) :
+    """"Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
     and transformed into a format that can be used for join on future tract years where 'tract','county',and 'state'
     are the composite primary key.
         
     Args:
-        url:  The url path to the csv file on the census tract website.
+        file_name: The name of the downloaded csv file from the census tract website.
         
     Returns:
          A dataframe of the downloaded and transformed zip file
@@ -46,6 +46,7 @@ def census_data_ingester(url:str = "url", file_name:str = "file") :
     data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
     return data
 
+# ffiec helper function
 def ffiec_flat_file_extractor(file:str, data_dict:str)->pd.core.frame.DataFrame:
     """Used to extract csv files from ffiec website and convert into pandas dataframe.
     
@@ -722,27 +723,17 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     
     
     return hmda_dict
-      
-def hmda_data_merger(hmda_dict_input:dict[pd.core.frame.DataFrame])->pd.core.frame.DataFrame:
+
+# cra helper function      
+def cra_data_ingester(file:str)->dict[str:pd.core.frame.DataFrame]:
+    """Used to read in cra .dat fwf files from directory(both agg and discl files need to be unzipped in directory where this function is being run from).
     
-    """Takes in hmda_dict_input dictionary of dataframes, merges each dataframe in the dictionary, and returns merged dictionaries.
+    Args:
+        file: not currently used
     
-    Args: 
-        url: url of HMDA page with zip file datasets on it. 
-        
-    Returns:
-        A dictionary of dataframes. One for each ingested file from the HMDA website.
-        
-    Raises:
-        TypeError: if input is not a dictionary of dataframes is not a string.
+    Returns: 
+        A dictionary of dataframes     
     """
-    lar_ts = pd.merge(hmda_dict_input["lar_df"], hmda_dict_input["ts_df"], how = 'left') # unique identifier: lei(legal entity identifier)
-    lar_ts_panel = pd.merge(lar_ts, hmda_dict_input["panel_df"], how = 'left') # unique identifier: tax_id
-    lar_ts_panel_msamd = pd.merge(lar_ts_panel, hmda_dict_input["msamd_df"],left_on = ['derived_msa_md'], right_on = ['msa_md'], how = 'left') # unique identifiers: derived_msa_md, msa_md
-    return lar_ts_panel_msamd
-
-def cra_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
-
     #url = 'https://www.ffiec.gov/cra/xls/21exp_aggr.zip'
     #r = requests.get(url, allow_redirects = True)
     #open('21exp_aggr.zip','wb').write(r.content)
@@ -968,6 +959,14 @@ def cra_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     return df_dict
     
 def zero_adder(fips_code:str)->str:
+    """Takes in a county code string and add zeroes to make it accuarte  to the fcc website county codes.
+    
+    Args:
+        fips_code: a county fips code from the cra files
+    
+    Returns: 
+        A county code string that matches the county portion of the county code on the fcc website.
+    """
     if len(fips_code) == 1:
         return '00'+ fips_code
     elif len(fips_code) == 2:
@@ -975,7 +974,15 @@ def zero_adder(fips_code:str)->str:
     else:
         return fips_code
 
-def fcc_fips_mappings_getter(url:str)->dict[dict[str:str]]:
+def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
+    """Used to download and convert county and state codes from fcc website into a python dictionary.
+    
+    Args:
+        url: fcc state and county codes website.
+    
+    Returns: 
+        A dictionary containing fcc fips codes as keys and thier corresponding state or county name as values.     
+    """
     fips_url = url
     fips_html = requests.get(fips_url)
     state_fips_dict = {}
@@ -987,8 +994,14 @@ def fcc_fips_mappings_getter(url:str)->dict[dict[str:str]]:
             counties_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
     return {'fcc_states':state_fips_dict,'fcc_counties':counties_fips_dict}
 
-def cra_mapping_function(df_dictionary:dict[pd.core.frame.DataFrame])->dict[pd.core.frame.DataFrame]:
-    """
+def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
+    """Used to map full descriptions to data entires that use codes as place holders in cra data.
+    
+    Args:
+        df_dictionary: a dictionary of dataframes reulting from the cra_data_ingester function.
+    
+    Returns: 
+        A dictionary of cra data dataframes where the .dat cra data file name is the key and the corresponding dataframe is the value.
     """
     # A11
     df_dictionary['cra2021_Aggr_A11.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A11.dat']['Loan Type'].map({
@@ -1836,7 +1849,16 @@ def cra_mapping_function(df_dictionary:dict[pd.core.frame.DataFrame])->dict[pd.c
 
     return df_dictionary
 
-def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict:str)->dict[pd.core.frame.DataFrame]:
+def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict:dict[str:dict[str:str]])->dict[str:pd.core.frame.DataFrame]:
+    """Used to map state and county names to their corresponding fips codes in cra data.
+    
+    Args:
+        df_dict: a dictionary of dataframes reulting from the cra_mapping_function function.
+        fcc_fips_dict: a dictioanry of state and county fips codes resulting from the fcc_fips_mappings_getter function.
+    
+    Returns: 
+        A dictionary of cra data dataframes with state and county names mapped in. The .dat cra data file name is the key and the corresponding dataframe is the value.
+    """
     for i in df_dict.keys():
         if 'State' and 'County' in df_dict[i].columns:
             print(i)
@@ -1851,25 +1873,164 @@ def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict
             df_dict[i]['County'] = df_dict[i]['County_Name']
             df_dict[i] = df_dict[i].drop(columns = ['State_Name','County_Name'], axis = 1)
     return df_dict
-    
+
+def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
+    """" Multiplies all fields in cra data that contain total loan amounts by 1000.
+        
+    Args:
+        df_dict: A dictionary of cra dataframes reulting from the state_county_fips_mapper function. 
+        
+    Returns:
+         A dictionary of cra dataframes with loan amount columns showing their full amount(e.g. 153 is not 153000)
+         """
+    for file_name in df_dict.keys():
+        for column in df_dict[file_name].columns:
+            if 'Total Loan Amount'in column:
+                #print(file_name, column)
+                df_dict[file_name][column] = df_dict[file_name][column]*1000 
+    return df_dict
+
+# fdic helper function
 def changec_label_adder(file_name:str)->dict[str:str]:
+    """Used to create dictionary of old column names as the key and new column names as the value using the institutions definitions file.
+    
+    Args: 
+        file_name: Name of institutions definitions data file
+        
+    Returns:
+        a dictionary of old column names as the keys and new column names as the values
+        """
     institutions_definitions_df = pd.read_csv(file_name)
     col_name_replace_map = dict(zip(institutions_definitions_df['Variable Name'],institutions_definitions_df['Variable Label']))  
+    # loop through the dictionary create between the variable name and variable label fields to add numbers to distinguish the CHANGEC
+    # values
     for original_field in col_name_replace_map.keys():
         if "CHANGEC" in original_field: 
             col_name_replace_map[original_field] = col_name_replace_map[original_field] + " " + original_field.split('CHANGEC')[1]
     return col_name_replace_map     
 
 def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[str:str])->pd.core.frame.DataFrame:
+    """Used to read in institution data for those created on or before 12/31/2023 and are in dallas, collins or tarrant county.
+    
+    Args: 
+        institutions_file_name: Name of institutions data file
+        col_replace_map: dictionary containing columns names returned from changec_label_adder() function.
+        
+    Returns:
+        A dataframe of the fdic institutions data
+        """
     institutions_df = pd.read_csv(institutions_file_name)
     institutions_df.rename(columns = col_replace_map, inplace = True)
+    # map in values for columns using numbers to represnet description
+    institutions_df['Institution Status'] = institutions_df['Institution Status'].map({ 1:'Institutions that are currently open and insured by the FDIC',
+                                                                                        0:'Institution closed or not insured by FDIC'})  
+    institutions_df["Institution Class"] = institutions_df["Institution Class"].map({"NM":"Commercial bank, state charter, Fed non-member, and supervised by the Federal Deposit Insurance Corporation (FDIC)",
+      "SI":"State chartered stock savings banks, supervised by the FDIC",
+      "N":"Commercial bank, national (federal) charter, Fed member, and supervised by the Office of the Comptroller of the Currency (OCC)", 
+      "NC":"Noninsured non-deposit commercial banks and/or trust companies regulated by the OCC, a state, or a territory",
+      "SM":"Commercial bank, state charter, Fed member, and supervised by the Federal Reserve Bank (FRB)",
+      "SB":"Federal savings banks, federal charter, supervised by the OCC or before July 21,2011 the Office of Thrift Supervision (OTS)",
+      "SL":"State chartered stock savings and loan associations, supervised by the FDIC or before July 21,2011 the OTS",
+      "NS":"Noninsured stock savings bank supervised by a state or territory",
+      "OI":"Insured U.S. branch of a foreign chartered institution (IBA) and supervised by the OCC or FDIC",
+      "CU":"state or federally chartered credit unions supervised by the National Credit Union Association (NCUA)"})
+    institutions_df['Metropolitan Divisions Flag'] = institutions_df['Metropolitan Divisions Flag'].map({1:"Yes",0:"No"})
+    institutions_df['Metropolitan Division Flag'] = institutions_df['Metropolitan Division Flag'].map({1:"Yes",0:"No"})
+    institutions_df['Micropolitan Division Flag'] = institutions_df['Micropolitan Division Flag'].map({1:"Yes",0:"No"})
+    institutions_df['CFPB Flag'] = institutions_df['CFPB Flag'].map({'0':"not supervised by CFPB",'1':"secondarily supervised by CFPB"})
+    institutions_df['CSA Area Flag'] = institutions_df['CSA Area Flag'].map({1:"Yes",0:"No"})
+    institutions_df['Numeric Code'] = institutions_df['Numeric Code'].map({"03":"National bank, Federal Reserve System (FRS) member",
+          "13":"State commercial bank, FRS member",
+          "15":"State industrial bank, FRS member",
+          "21":"State commercial bank, not FRS member",
+          "23":"State industrial bank, not FRS member",
+          "25":"State nonmember mutual bank",
+          "33":"Federal chartered savings and co-operative bank - stock",
+          "34":"Federal chartered savings and co-operative bank - mutual",
+          "35":"State chartered thrift - stock",
+          "36":"State chartered thrift - mutual",
+          "37":"Federal chartered thrift - stock",
+          "38":"Federal chartered thrift - mutual",
+          "41":"State chartered stock savings and co-operative bank",
+          "42":"State chartered mutual savings and co-operative bank",
+          "43":"Federal chartered stock savings bank (historical)",
+          "44":"Federal chartered mutual savings bank (historical)", 
+          "50":"Nondeposit trust company, OCC chartered",
+          "51":"Commercial bank",
+          "53":"Industrial bank",
+          "54":"Nondeposit trust company, state chartered, not FRS member",
+          "57":"New York investment company",
+          "58":"Nondeposit trust company, state chartered, FRS member",
+          "59":"Nondeposit trust company",
+          "61":"Noninsured private bank",
+          "62":"Noninsured loan workout bank, OCC chartered",
+          "63":"Noninsured loan workout bank, state chartered, FRS member",
+          "64":"Noninsured loan workout bank, state chartered, not FRS member",
+          "81":"Noninsured stock savings and co-operative bank",
+          "82":"Noninsured mutual savings and co-operative bank",
+          "85":"Noninsured stock savings and loan association",
+          "86":"Noninsured mutual savings and loan association",
+          "89":"Noninsured insurance company"})
+    institutions_df['Conservatorship'] = institutions_df['Conservatorship'].map({1:"Yes",0:"No"})
+    institutions_df['CSA Area Flag'] = institutions_df['CSA Area Flag'].map({1:"Yes",0:"No"})
+    institutions_df = institutions_df.astype({'Federal Reserve ID Number':str})
+    # institutions_df['Federal Reserve ID Number'] = institutions_df['Federal Reserve ID Number'].map({"1":"Boston",
+    #                                                                                                  "2":"New York",
+    #                                                                                                  "3":"Philadelphia",
+    #                                                                                                  "4":"Cleveland",
+    #                                                                                                  "5":"Richmond",
+    #                                                                                                  "6":"Atlanta",
+    #                                                                                                  "7":"Chicago",
+    #                                                                                                  "8":"St. Louis",
+    #                                                                                                  "9":"Minneapolis",
+    #                                                                                                  "10":"Kansas city",
+    #                                                                                                  "11":"Dallas", 
+    #                                                                                                  "12":"San Francisco"})
+    institutions_df['Primary Regulator'] = institutions_df['Primary Regulator'].map({"OCC":"Office of the Comptroller of Currency",
+                                                                                     "FDIC":"Federal Deposit Insurance Corporation",
+                                                                                     "FRB":"Federal Reserve Board",
+                                                                                     "NCUA":"National Credit Union Association",
+                                                                                     "OTS":"Office of Thrift Supervision"})
+    # institutions_df['Supervisory Region Number'] = institutions_df['Supervisory Region Number'].map({"02":"New York",
+    #                                                                                                  "05":"Atlanta",
+    #                                                                                                  "09":"Chicago",
+    #                                                                                                  "11":"Kansas City",
+    #                                                                                                  "13"::"Dallas",
+    #                                                                                                  "14":"San Francisco",
+    #                                                                                                  "16":"Office of Complex Financial Institutions (CFI)"})
+    # institutions_df['Trust Powers'] = institutions_df['Trust Powers'].map({"00":"Trust Powers Not Known",
+    #                                                                        "10":"Full Trust Powers Granted",
+    #                                                                        "11":"Full Trust Powers Granted, Exercised",
+    #                                                                        "12":"Full Trust Powers Granted, Not Exercised",
+    #                                                                        "20":"Limited Trust Powers Granted",
+    #                                                                        "21":"Limited Trust Powers Granted, Exercised",
+    #                                                                        "30":"Trust Powers Not Granted",
+    #                                                                        "31":"Trust Powers Not Granted, But Exercised",
+    #                                                                        "40":"Trust Powers Grandfathered"})
+    institutions_df['State Charter'] = institutions_df['State Charter'].map({1:"yes",0:"no"})
+    institutions_df['FFIEC Call Report 31 Filer'] = institutions_df['FFIEC Call Report 31 Filer'].map({1:"yes",0:"no"})
+    institutions_df['Bank Holding Company Type'] = institutions_df['Bank Holding Company Type'].map({1:"yes", 0:"no"})
+    institutions_df['Deposit Insurance Fund member'] = institutions_df['Deposit Insurance Fund member'].map({1:"Yes", 0:"No"})
+    institutions_df['Law Sasser Flag'] = institutions_df['Law Sasser Flag'].map({1:"Yes", 0:"No"})
+    institutions_df = institutions_df.astype({'Credit Card Institutions':int}, errors = 'ignore')
+    # filter for established in 12/31/2022 or before
     institutions_df['Established Date'] = pd.to_datetime(institutions_df['Established Date'])
     institutions_df[institutions_df['Established Date'] <= '2022-12-31']
+    # filter for dallas, collins and tarrant counties in TX
+    institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
+    institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
     return institutions_df
 
 def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.frame.DataFrame:
-    """
-    """
+    """Used to read in locations data for those created on or before 12/31/2023 and are in dallas, collins or tarrant county.
+    
+    Args: 
+        locations_file: Name of locations data file
+        locations_def_file: Name of locations definitions file
+        
+    Returns:
+        A dataframe of of the fdic locations data
+    """ 
     loc_fed_df = pd.read_csv(fdic_locations_definitions)
     bkclass_replace_map = dict(zip(loc_fed_df.iloc[2:8,:]['TITLE'].str.replace(' ','').str.strip('-'), loc_fed_df.iloc[2:8,:]['DEFINITION']))
     serve_type_map = dict(zip(loc_fed_df.iloc[31:47,:]['TITLE'],loc_fed_df.iloc[31:47,:]['DEFINITION']))
@@ -1878,10 +2039,14 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     fdic_locations_df['BKCLASS'] = fdic_locations_df['BKCLASS'].map(bkclass_replace_map)
     fdic_locations_df['SERVTYPE'] = fdic_locations_df['SERVTYPE'].map(serve_type_map)
     fdic_locations_df.rename(columns = inst_col_name_map, inplace = True)
+    # map descriptions to columns using codes as place holders
     fdic_locations_df['Metropolitan Divisions Flag (Branch)'] = fdic_locations_df['Metropolitan Divisions Flag (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Metropolitan Division Flag (Branch)'] = fdic_locations_df['Metropolitan Division Flag (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Micropolitan Division Flag (Branch)'] = fdic_locations_df['Micropolitan Division Flag (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Combined Statistical Area Flag  (Branch)'] = fdic_locations_df['Combined Statistical Area Flag  (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Branch Established Date'] = pd.to_datetime(fdic_locations_df['Branch Established Date'])
-    final_fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch Established Date'] <= '2022-12-31']
+    fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch Established Date'] <= '2022-12-31']
+    # filter for location in texas and counties that are dallas, collins or tarrant
+    fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch State   '] == 'Texas']
+    final_fdic_locations_df = fdic_locations_df[(fdic_locations_df['Branch County'] == 'Tarrant') | (fdic_locations_df['Branch County'] == 'Collin') | (fdic_locations_df['Branch County'] == 'Dallas')]
     return final_fdic_locations_df

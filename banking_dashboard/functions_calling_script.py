@@ -17,7 +17,7 @@ ffiec_data = ffiec_flat_file_extractor('CensusFlatFile2022.csv','FFIEC_Census_Fi
 # Panel -> https://s3.amazonaws.com/cfpb-hmda-public/prod/snapshot-data/2022/2022_public_panel_csv.zip
 # MSA/MD Description - > https://s3.amazonaws.com/cfpb-hmda-public/prod/snapshot-data/2022/2022_public_msamd_csv.zip
 hmda_dict = hmda_data_ingester('a') # can be any string currently 
-hmda_df = hmda_data_merger(hmda_dict)
+
 
 # Ingest cra data. User will need to have zip files at the following urls downloaded in in the same directory as these functions to run them(THESE URLS WILL DOWNLOAD THE FILE WHEN PASTED IN BROWSER):
 # 2021 Agg Data -> https://www.ffiec.gov/cra/xls/21exp_aggr.zip
@@ -26,7 +26,8 @@ cra_dict = cra_data_ingester('t') # can be any string currently
 cra_dict_no_fips = cra_mapping_function(cra_dict)
 fcc_fips_url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
 fcc_fips = fcc_fips_mappings_getter(fcc_fips_url)
-final_cra_dict = state_county_fips_mapper(cra_dict_no_fips, fcc_fips)
+cra_dict_mapped_fips = state_county_fips_mapper(cra_dict_no_fips, fcc_fips)
+final_cra_dict = thousands_adder(cra_dict_mapped_fips)
 
 # Ingest fdic institutions and locations data. User will need to have files from the following urls downloaded in the same directory as these functions to run them (THESE URLS WILL DOWNLOAD THE FILE WHEN PASTED IN BROWSER):
 # Institutions -> https://s3-us-gov-west-1.amazonaws.com/cg-2e5c99a6-e282-42bf-9844-35f5430338a5/downloads/institutions.csv
