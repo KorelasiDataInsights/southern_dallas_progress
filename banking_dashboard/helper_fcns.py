@@ -2051,3 +2051,69 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch State   '] == 'Texas']
     final_fdic_locations_df = fdic_locations_df[(fdic_locations_df['Branch County'] == 'Tarrant') | (fdic_locations_df['Branch County'] == 'Collin') | (fdic_locations_df['Branch County'] == 'Dallas')]
     return final_fdic_locations_df
+
+# sba helper function
+def sba_data_ingester(url:str)->pd.core.frame.DataFrame:  
+    """Takes in url of sba FOIA - 7(a) csv file, downloads it, cleans it and retuns a pandas dataframe of the file.
+    
+    Args:
+        url: The url of the downloaded csv file from the census tract website.
+        
+    Returns:
+         A dataframe of the downloaded and cleaned csv file.    
+    """
+    file_name = url.split('/')[-1]
+    r = requests.get(url, allow_redirects = True)
+    open(file_name,'wb').write(r.content)
+    foia_7a_2020_df = pd.read_csv('foia-7afy2020-present-asof-230630.csv', encoding = 'latin-1')
+    # map in vales for intries in columns 
+    foia_7a_2020_df['DeliveryMethod'] = foia_7a_2020_df['DeliveryMethod'].map({
+          "CA":"Community Advantage",
+          "CLP":"Certified Lenders Program",
+          "COMM EXPRS":"Community Express (inactive)",
+          "DFP":"Dealer Floor Plan (inactive)",
+          "DIRECT":"Direct Loan (inactive)",
+          "EWCP":"Export Working Capital Program",
+          "EXP CO GTY":"Co-guaranty with Export-Import Bank (inactive)",
+          "EXPRES EXP":"Export Express",
+          "GO LOANS":"Gulf Opportunity Loan (inactive)",
+          "INTER TRDE":"International Trade",
+          "OTH 7A":"Other 7(a) Loan",
+          "PATRIOT EX":"Patriot Express (inactive)",
+          "PLP":"Preferred Lender Program",
+          "RLA":"Rural Lender Advantage (inactive)",
+          "SBA EXPRES":"SBA Express",
+          "SLA":"Small Loan Advantage",
+          "USCAIP":"US Community Adjustment and Investment Program",
+          "Y2K":"Y2K Loan (inactive)"
+    })
+    
+    foia_7a_2020_df['LoanStatus'] = foia_7a_2020_df['LoanStatus'].map({
+          "COMMIT":"Undisbursed",
+          "PIF":"Paid In Full",
+          "CHGOFF":"Charged Off",
+          "CANCLD":"Cancelled",
+          "EXEMPT":"The status of loans that have been disbursed but have not been cancelled, paid in full, or charged off are exempt from disclosure under FOIA Exemption 4"
+    })
+    
+    foia_7a_2020_df['RevolverStatus'] =  foia_7a_2020_df['RevolverStatus'].map({
+        0:"Term",
+        1:"Revolver"
+    })
+    
+    foia_7a_2020_df['SOLDSECMRTIND'] = foia_7a_2020_df['SOLDSECMRTIND'].map({
+        "Y":"Sold on the secondary market",
+        "N":"Not sold on the secondary market"
+    })
+    
+    test_dct = {'BorrName':"Borrower name",
+    "BorrStreet":"Borrower street address",
+    "BorrCity":"Borrower city",
+    "BorrState":"Borrower state",
+    "BorrZip":"Borrower zip code",
+    "GrossApproval":"Total loan amount",
+    "subpgmdesc":"Subprogram description"}
+    
+    new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
+    foia_7a_2020_df.columns = new_columns
+    return foia_7a_2020_df

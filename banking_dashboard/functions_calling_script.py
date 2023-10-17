@@ -37,3 +37,8 @@ final_cra_dict = thousands_adder(cra_dict_mapped_fips)
 replace_map_columns = changec_label_adder('institutions_definitions.csv')
 fdic_institutions_df = fdic_institutions_ingester('institutions.csv', replace_map_columns)
 fdic_locations_df = fdic_locations_mapper('locations_definitions.csv','locations.csv')
+
+# Ingest foia 7a data from 2020 to present. User will need url of foia 7a data from 2020 to present to run this function.
+# foia 7a data from 2020 to present url :'https://data.sba.gov/dataset/0ff8e8e9-b967-4f4e-987c-6ac78c575087/resource/c71ba6cf-b4e0-4e60-98f0-48aeaf4c6460/download/foia-7afy2020-present-asof-230630.csv'
+url = 'https://data.sba.gov/dataset/0ff8e8e9-b967-4f4e-987c-6ac78c575087/resource/c71ba6cf-b4e0-4e60-98f0-48aeaf4c6460/download/foia-7afy2020-present-asof-230630.csv'
+df = sba_data_ingester(url)
