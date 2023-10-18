@@ -2,11 +2,12 @@
 
 import requests
 from bs4 import BeautifulSoup
-import wget 
+# import wget 
 import zipfile 
 import json
 import os
 import pandas as pd
+import numpy as np
 import requests
 import re
 from datetime import datetime
@@ -153,7 +154,7 @@ def ffiec_flat_file_extractor(file:str, data_dict:str)->pd.core.frame.DataFrame:
     return data
 
 # hmda helper function
-def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
+def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.DataFrame]:
     
     """Used to read in all necessary .csv files from HMDA website and return a dictionary containing all of the read in
     files.
@@ -174,7 +175,7 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     # of storing file. When analyzing the LAR dataset, using the dask library will work specificlly dask.dataframe().
 
     # read in loan/application records as df
-    lar_df = pd.read_csv('2022_public_lar_csv.csv', nrows = 50000)
+    lar_df = pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'), nrows = 50000)
     # mapping values for columns in Loan/Application Records(LAR)
 
     lar_df['conforming_loan_limit'] = lar_df['conforming_loan_limit'].map({"C (Conforming)":"Conforming",
@@ -675,7 +676,7 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
                    "census_tract":str})
     
     # read in transmittal sheet records as df
-    ts_df = pd.read_csv("2022_public_ts_csv.csv")
+    ts_df = pd.read_csv(os.path.join(data_folder, "2022_public_ts_csv.csv"))
     
     # replacing values of "agency_code" with actual string fields in transmittal sheet dataset
     ts_df['agency_code'] = ts_df['agency_code'].map({1:"Office of the Comptroller of the Currency",
@@ -686,7 +687,7 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
                                                      9:"Consumer Financial Protection Bureau"})
 
     # read in reporter panel data as df
-    panel_df = pd.read_csv('2022_public_panel_csv.csv', na_values = [-1]) # -1 is being encoded for NULL so I am replacing 
+    panel_df = pd.read_csv(os.path.join(data_folder, '2022_public_panel_csv.csv'), na_values = [-1]) # -1 is being encoded for NULL so I am replacing 
                                                                           # -1 with NaN. No description in data dictionary for 
                                                                           # field called "upper"
             
@@ -708,7 +709,7 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     panel_df.rename(columns = {'upper':'lei'}, inplace = True)
     
     # read in metropolitan statistical area and metropolitan division data as df
-    msamd_df = pd.read_csv('2022_public_msamd_csv.csv') # nothing written in data dictionary saying 99999 is na but it does
+    msamd_df = pd.read_csv(os.path.join(data_folder, '2022_public_msamd_csv.csv')) # nothing written in data dictionary saying 99999 is na but it does
                                                         # not look like a legitamate msa_md code
 
     # recast data types
@@ -725,7 +726,7 @@ def hmda_data_ingester(url:str)->dict[pd.core.frame.DataFrame]:
     return hmda_dict
 
 # cra helper function      
-def cra_data_ingester(file:str)->dict[str:pd.core.frame.DataFrame]:
+def cra_data_ingester(file:str, data_folder:str = 'data')->dict[str:pd.core.frame.DataFrame]:
     """Used to read in cra .dat fwf files from directory(both agg and discl files need to be unzipped in directory where this function is being run from).
     
     Args:
@@ -953,9 +954,9 @@ def cra_data_ingester(file:str)->dict[str:pd.core.frame.DataFrame]:
                            'cra2021_Discl_D6.dat':[d6_widths,d6_fields]}
     
     df_dict = {}
-    for i in os.listdir():
+    for i in os.listdir(data_folder):
         if i in fwf_dimensions_dict: 
-            df_dict[i] = pd.read_fwf(i, widths = fwf_dimensions_dict[i][0], header = None, names = fwf_dimensions_dict[i][1])
+            df_dict[i] = pd.read_fwf(os.path.join(data_folder, i), widths = fwf_dimensions_dict[i][0], header = None, names = fwf_dimensions_dict[i][1])
     return df_dict
     
 def zero_adder(fips_code:str)->str:
@@ -2032,11 +2033,11 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     Returns:
         A dataframe of of the fdic locations data
     """ 
-    loc_fed_df = pd.read_csv(fdic_locations_definitions)
+    loc_fed_df = pd.read_csv(locations_def_file)
     bkclass_replace_map = dict(zip(loc_fed_df.iloc[2:8,:]['TITLE'].str.replace(' ','').str.strip('-'), loc_fed_df.iloc[2:8,:]['DEFINITION']))
     serve_type_map = dict(zip(loc_fed_df.iloc[31:47,:]['TITLE'],loc_fed_df.iloc[31:47,:]['DEFINITION']))
     inst_col_name_map = dict(zip(loc_fed_df[loc_fed_df['NAME'].notnull()]['NAME'], loc_fed_df[loc_fed_df['NAME'].notnull()]['TITLE']))
-    fdic_locations_df = pd.read_csv(fdic_locations)
+    fdic_locations_df = pd.read_csv(locations_file)
     fdic_locations_df['BKCLASS'] = fdic_locations_df['BKCLASS'].map(bkclass_replace_map)
     fdic_locations_df['SERVTYPE'] = fdic_locations_df['SERVTYPE'].map(serve_type_map)
     fdic_locations_df.rename(columns = inst_col_name_map, inplace = True)
