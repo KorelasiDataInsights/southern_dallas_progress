@@ -48,7 +48,7 @@ def census_data_ingester(file_name:str) :
     return data
 
 # ffiec helper function
-def ffiec_flat_file_extractor(file:str, data_dict:str)->pd.core.frame.DataFrame:
+def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.core.frame.DataFrame:
     """Used to extract csv files from ffiec website and convert into pandas dataframe.
     
     Args:
@@ -67,7 +67,10 @@ def ffiec_flat_file_extractor(file:str, data_dict:str)->pd.core.frame.DataFrame:
     data_dictionary = pd.read_excel(data_dict, sheet_name = 'Data Dictionary')
     data_dictionary = data_dictionary[data_dictionary['Index']>=0]
     new_ffiec_cols = data_dictionary['Description']
-    data = pd.read_csv(file, nrows = 8000, header = None)
+    if ingest_all:
+        data = pd.read_csv(file, header = None)
+    else:
+        data = pd.read_csv(file, nrows = 8000, header = None)
     old_ffiec_cols = data.columns
     replacement_map = dict(zip(old_ffiec_cols,new_ffiec_cols))
     data.rename(columns = replacement_map, inplace=True)
@@ -2118,3 +2121,9 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
     foia_7a_2020_df.columns = new_columns
     return foia_7a_2020_df
+
+
+def format_census_tract(tract_number):
+    return '%07.2F'% tract_number
+
+
