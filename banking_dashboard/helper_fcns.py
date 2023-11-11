@@ -12,6 +12,45 @@ import requests
 import re
 from datetime import datetime
 
+# General  functions not specific to data source
+def format_census_tract(tract_number):
+    return '%07.2F'% tract_number
+
+def state_abrevs_getter(ssa_url:str)->dict[str:str]:
+    """Used to download and convert each state abbreviation and its full name into a dictionary which will be the output.
+    Args: 
+        url: social security administration website
+
+    Returns:
+        A dictionary containing the state abbreviation as the key and the full state name as the value
+    """
+    ssa_html = requests.get(ssa_url)
+    ssa_soup = BeautifulSoup(ssa_html.content, 'html.parser')
+    state_abbrevs = {}
+    for state in ssa_soup.find_all('tr'):
+        state_abbrevs[state.text.strip().split()[-1]] = ' '.join(state.text.strip().split()[:-1])
+    return state_abbrevs
+
+def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
+    """Used to download and convert county and state codes from fcc website into a python dictionary.
+    
+    Args:
+        url: fcc state and county codes website.
+    
+    Returns: 
+        A dictionary containing fcc fips codes as keys and thier corresponding state or county name as values.     
+    """
+    fips_url = url
+    fips_html = requests.get(fips_url)
+    state_fips_dict = {}
+    counties_fips_dict = {} 
+    for row_num, area_and_fips in enumerate(str(fips_html.content).split('\\n')):
+        if row_num in range(16,67):        
+            state_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
+        if row_num in range(72,3267):
+            counties_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
+    return {'fcc_states':state_fips_dict,'fcc_counties':counties_fips_dict}
+
 # census tract helper function
 def census_data_ingester(file_name:str) :
     """"Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
@@ -41,10 +80,12 @@ def census_data_ingester(file_name:str) :
     data = data.drop(data.index[0])
     data = data.drop(columns = ['test1'])#, axis = 1)
     data = data.drop(columns = ['Label (Grouping)'])#, axis = 1)
+    data['tract'] = data['tract'].str.replace('Census Tract', '').str.strip().apply(float).apply(format_census_tract)
     data = data.set_index(['tract','county','state'])
     data.columns = list(data.columns.str.replace(u'\xa0', u' ').str.replace(':','').str.lstrip(' ')) # remove \xa0 Latin1 characters and ":" in column names
     data = data.replace('[^0-9.]', '', regex = True) # replace commas in entry values with nothing 
     data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
+    #data = data
     return data
 
 # ffiec helper function
@@ -154,6 +195,17 @@ def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.cor
     numeric_field_list = list(data.loc[:,~data.columns.isin(alphanumeric_field_list)].columns)
     numeric_to_float_dict = {n_field:float for n_field in numeric_field_list} 
     data = data.astype(numeric_to_float_dict) # casting numeric fields to floats 
+    data['Census tract. Implied decimal point'] = data['Census tract. Implied decimal point'].apply(int)/100
+    data['Census tract. Implied decimal point'] = data['Census tract. Implied decimal point'].apply(format_census_tract) 
+    data['FIPS state code'] = data['FIPS state code'].apply(lambda x: '0'+ x if len(x)<2 else x)
+    data['FIPS county code'] = data['FIPS state code'] + data['FIPS county code'].apply(zero_adder)
+    url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
+    fips_dict = fcc_fips_mappings_getter(url)
+    data['FIPS state code'] = data['FIPS state code'].map(fips_dict['fcc_states'])
+    data['FIPS county code'] = data['FIPS county code'].map(fips_dict['fcc_counties'])
+    data = data[data['FIPS state code'] == 'TEXAS']
+    data = data[(data['FIPS county code'] == 'Tarrant County') | (data['FIPS county code'] == 'Collin County') | (data['FIPS county code'] == 'Dallas County')]
+    
     return data
 
 # hmda helper function
@@ -673,10 +725,24 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
                                                                7:"Credit application incomplete",
                                                                8:"Mortgage insurance denied",
                                                                9:"Other"})
+    
+    # map in full state names
+    ssa_url = 'https://www.ssa.gov/international/coc-docs/states.html'
+    state_abbrev_map = state_abrevs_getter(ssa_url)
+    lar_df['state_code'] = lar_df['state_code'].map(state_abbrev_map)
+
+    # map in county names 
+    lar_df['county_code'] = lar_df['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df['county_code'].apply(str).str.replace('.0','').str[-3:]
+    url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
+    fips_dict = fcc_fips_mappings_getter(url)
+    lar_df['county_code'] = lar_df['county_code'].map(fips_dict['fcc_counties'])
 
     # recast data types
-    lar_df = lar_df.astype({"derived_msa_md":str, 
-                   "census_tract":str})
+    lar_df = lar_df.astype({"derived_msa_md":str, "census_tract":str})
+
+    # reformat the census tract column and subset for records in TEXAS
+    lar_df['census_tract'] = lar_df['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
+    lar_df = lar_df[lar_df['state_code'] == 'TEXAS']
     
     # read in transmittal sheet records as df
     ts_df = pd.read_csv(os.path.join(data_folder, "2022_public_ts_csv.csv"))
@@ -720,11 +786,10 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     
         
     # arid_2017 = pd.read_csv('arid2017_to_lei_xref_csv.csv') # not using for the moment because not joining in previous 
-                                                              # years so do not need to use
+                                                              # years so do not need to use                                                         
         
     hmda_dict = {"lar_df":lar_df,"ts_df":ts_df, "panel_df":panel_df, "msamd_df":msamd_df}
-
-    
+   
     
     return hmda_dict
 
@@ -978,26 +1043,6 @@ def zero_adder(fips_code:str)->str:
     else:
         return fips_code
 
-def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
-    """Used to download and convert county and state codes from fcc website into a python dictionary.
-    
-    Args:
-        url: fcc state and county codes website.
-    
-    Returns: 
-        A dictionary containing fcc fips codes as keys and thier corresponding state or county name as values.     
-    """
-    fips_url = url
-    fips_html = requests.get(fips_url)
-    state_fips_dict = {}
-    counties_fips_dict = {} 
-    for row_num, area_and_fips in enumerate(str(fips_html.content).split('\\n')):
-        if row_num in range(16,67):        
-            state_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
-        if row_num in range(72,3267):
-            counties_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
-    return {'fcc_states':state_fips_dict,'fcc_counties':counties_fips_dict}
-
 def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
     """Used to map full descriptions to data entires that use codes as place holders in cra data.
     
@@ -1015,12 +1060,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     df_dictionary['cra2021_Aggr_A11.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A11.dat']['Action Taken Type'].map({
         1:"Originations"
     })
-    
-    # df['State'].map({
-    # }).replace(np.nan, "totals")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "totals")
 
     df_dictionary['cra2021_Aggr_A11.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A11.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
@@ -1075,12 +1114,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         1:"Originations"
     })
 
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
-
     df_dictionary['cra2021_Aggr_A11a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A11a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
     df_dictionary['cra2021_Aggr_A11a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A11a.dat']['Respondent ID'].replace(np.nan, "total")
@@ -1108,12 +1141,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     df_dictionary['cra2021_Aggr_A12.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A12.dat']['Action Taken Type'].map({
         6:"Purchases"
     })
-
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
 
     df_dictionary['cra2021_Aggr_A12.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A12.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
@@ -1168,12 +1195,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         6:"Purchases"
     })
 
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
-
     df_dictionary['cra2021_Aggr_A12a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A12a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
     df_dictionary['cra2021_Aggr_A12a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A12a.dat']['Respondent ID'].replace(np.nan, "total")
@@ -1200,12 +1221,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     df_dictionary['cra2021_Aggr_A21.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A21.dat']['Action Taken Type'].map({
         1:"Originations"        
     })
-
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
 
     df_dictionary['cra2021_Aggr_A21.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A21.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
@@ -1260,12 +1275,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         1:"Originations"        
     })
 
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
-
     df_dictionary['cra2021_Aggr_A21a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A21a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
     
     df_dictionary['cra2021_Aggr_A21a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A21a.dat']['Respondent ID'].replace(np.nan, "total")
@@ -1292,12 +1301,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     df_dictionary['cra2021_Aggr_A22.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A22.dat']['Action Taken Type'].map({
         6:"Purchases"
     })
-
-    # df['State'].map({
-    # }).replace(np.nan, "not a total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "not a total")
 
     df_dictionary['cra2021_Aggr_A22.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A22.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
@@ -1352,11 +1355,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         6:"Purchases"
     })
 
-    # df['State'].map({
-    # }).replace(np.nan, "total")
-    
-    # df['County'].map({
-    # }).replace(np.nan, "total")
     df_dictionary['cra2021_Aggr_A22a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A22a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
     df_dictionary['cra2021_Aggr_A22a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A22a.dat']['Respondent ID'].replace(np.nan, "total")
@@ -1390,12 +1388,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     df_dictionary['cra2021_Discl_D11.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D11.dat']['Action Taken Type'].map({
         1:"Originations"
     })
-
-     # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
 
     df_dictionary['cra2021_Discl_D11.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D11.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
@@ -1461,19 +1453,13 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D12.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D12.dat']['Agency Code'].map({
+    df_dictionary['cra2021_Discl_D12.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D12.dat']['Loan Type'].map({
         4:"Small Business"
     })
 
     df_dictionary['cra2021_Discl_D12.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D12.dat']['Action Taken Type'].map({
         6:"Purchases"
     })
-
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
 
     df_dictionary['cra2021_Discl_D12.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D12.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
@@ -1547,12 +1533,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
        1:"Originations"
     })
 
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
-
     df_dictionary['cra2021_Discl_D21.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D21.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
     df_dictionary['cra2021_Discl_D21.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D21.dat']['Assessment Area Number'].replace(\
@@ -1625,12 +1605,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
        6:"Purchases"
     })
 
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
-
     df_dictionary['cra2021_Discl_D22.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D22.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
     df_dictionary['cra2021_Discl_D22.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D22.dat']['Assessment Area Number'].replace(\
@@ -1699,12 +1673,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
        4:"Small Business"
     })
 
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
-
     df_dictionary['cra2021_Discl_D3.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D3.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
     df_dictionary['cra2021_Discl_D3.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D3.dat']['Assessment Area Number'].replace(\
@@ -1736,15 +1704,9 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D4.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D4.dat']['Agency Code'].map({
+    df_dictionary['cra2021_Discl_D4.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D4.dat']['Loan Type'].map({
       5:"Small Farm"
     })
-
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
 
     df_dictionary['cra2021_Discl_D4.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D4.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
@@ -1770,7 +1732,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     })
 
     #D5
-    df_dictionary['cra2021_Discl_D5.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D5.dat']['Loan Type'].map({
+    df_dictionary['cra2021_Discl_D5.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D5.dat']['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
@@ -1796,13 +1758,9 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         4:"OTS"
     }).replace(np.nan, "total")
 
-    # df['State'].map({
-    # })
-    
-    # df['County'].map({
-    # })
-
     df_dictionary['cra2021_Discl_D6.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D6.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+
+    df_dictionary['cra2021_Discl_D6.dat']['Census Tract'] = df_dictionary['cra2021_Discl_D6.dat']['Census Tract'].apply(format_census_tract)
 
     df_dictionary['cra2021_Discl_D6.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D6.dat']['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area(s) (including predominately military areas)")
@@ -1822,7 +1780,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         "L":"counties with >500,000 in population"
     })
 
-    df_dictionary['cra2021_Discl_D6.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D6.dat']['Population Classification'].map({
+    df_dictionary['cra2021_Discl_D6.dat']['Income Group'] =  df_dictionary['cra2021_Discl_D6.dat']['Income Group'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1892,7 +1850,20 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
             if 'Total Loan Amount'in column:
                 #print(file_name, column)
                 df_dict[file_name][column] = df_dict[file_name][column]*1000 
-    return df_dict
+    
+    # filter Discl 11 down to Texas and Tarrant, Collin, and Dallas counties
+    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'][df_dict['cra2021_Discl_D11.dat']['State'] == 'TEXAS']
+    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'][(df_dict['cra2021_Discl_D11.dat']['County'] == 'Tarrant County') | (df_dict['cra2021_Discl_D11.dat']['County'] == 'Collin County') | (df_dict['cra2021_Discl_D11.dat']['County'] == 'Dallas County')]
+    
+    # filter Discl 6 down to Texas and Tarrant, Collin, and Dallas counties
+    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][df_dict['cra2021_Discl_D6.dat']['State'] == 'TEXAS']
+    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][(df_dict['cra2021_Discl_D6.dat']['County'] == 'Tarrant County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Collin County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Dallas County')]
+
+    # Only keep D11 and D6 (to cut down on memory issues)
+    final_cra_dict = {'cra2021_Discl_D11.dat': df_dict['cra2021_Discl_D11.dat'], # Small business loans by County level
+                      'cra2021_Discl_D6.dat': df_dict['cra2021_Discl_D6.dat']  # Assessment area by census tract
+                        }
+    return final_cra_dict
 
 # fdic helper function
 def changec_label_adder(file_name:str)->dict[str:str]:
@@ -2022,8 +1993,9 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
     institutions_df['Established Date'] = pd.to_datetime(institutions_df['Established Date'])
     institutions_df[institutions_df['Established Date'] <= '2022-12-31']
     # filter for dallas, collins and tarrant counties in TX
-    institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
-    institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
+    # institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
+    # institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
+    institutions_df = institutions_df.reset_index().set_index('FDIC Certificate #').reset_index()
     return institutions_df
 
 def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.frame.DataFrame:
@@ -2120,10 +2092,13 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     
     new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
     foia_7a_2020_df.columns = new_columns
+
+    # subset for entries that have an approval date in 2022
+    foia_7a_2020_df['ApprovalDate'] = pd.to_datetime(foia_7a_2020_df['ApprovalDate'], format = '%m/%d/%Y')
+    foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['ApprovalDate'] > '2021-12-31') & (foia_7a_2020_df['ApprovalDate'] < '2023-01-01')]
+
     return foia_7a_2020_df
 
 
-def format_census_tract(tract_number):
-    return '%07.2F'% tract_number
 
 
