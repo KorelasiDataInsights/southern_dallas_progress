@@ -85,8 +85,32 @@ def census_data_ingester(file_name:str) :
     data.columns = list(data.columns.str.replace(u'\xa0', u' ').str.replace(':','').str.lstrip(' ')) # remove \xa0 Latin1 characters and ":" in column names
     data = data.replace('[^0-9.]', '', regex = True) # replace commas in entry values with nothing 
     data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
+    data = data.rename(columns = lambda x: x.strip())
     #data = data
     return data
+
+def census_data_ingester2(census_file_common_string:str)-> pd.core.frame.DataFrame:
+    census_files = [os.path.join('data', i) for i in os.listdir('data/') if census_file_common_string in i]
+    census_df_list = []
+    for file_name in census_files:
+        data = pd.read_csv(file_name)
+        data = data.T
+        data = data.reset_index()
+        data.columns = data.iloc[0]
+        data['test1'] = data['Label (Grouping)'].str.split(',').to_frame()
+        data[['tract','county','state']] = pd.DataFrame(data['test1'].to_list(), columns = ['tract','county','state'])[['tract','county','state']]
+        data = data.drop(data.index[0])
+        data = data.drop(columns = ['test1'])#, axis = 1)
+        data = data.drop(columns = ['Label (Grouping)'])#, axis = 1)
+        data['tract'] = data['tract'].str.replace('Census Tract', '').str.strip().apply(float).apply(format_census_tract)
+        data = data.set_index(['tract','county','state'])
+        data.columns = list(data.columns.str.replace(u'\xa0', u' ').str.replace(':','').str.lstrip(' ')) # remove \xa0 Latin1 characters and ":" in column names
+        data = data.replace('[^0-9.]', '', regex = True) # replace commas in entry values with nothing 
+        data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
+        census_df_list.append(data)
+    census_df = pd.concat(census_df_list).reset_index()   
+    census_df = census_df.rename(columns = lambda x: x.strip()) 
+    return census_df
 
 # ffiec helper function
 def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.core.frame.DataFrame:
@@ -205,7 +229,8 @@ def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.cor
     data['FIPS county code'] = data['FIPS county code'].map(fips_dict['fcc_counties'])
     data = data[data['FIPS state code'] == 'TEXAS']
     data = data[(data['FIPS county code'] == 'Tarrant County') | (data['FIPS county code'] == 'Collin County') | (data['FIPS county code'] == 'Dallas County')]
-    
+    data = data.rename(columns = {'Census tract. Implied decimal point':'Census tract', 'FIPS county code':'County','FIPS state code':'State'})
+    data = data.rename(columns = lambda x: x.strip())
     return data
 
 # hmda helper function
@@ -740,20 +765,23 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     # recast data types
     lar_df = lar_df.astype({"derived_msa_md":str, "census_tract":str})
 
-    # reformat the census tract column and subset for records in TEXAS
+    # reformat the census tract column and subset for records in TEXAS and counties of interest and  stipping whitespace from column names
     lar_df['census_tract'] = lar_df['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
     lar_df = lar_df[lar_df['state_code'] == 'TEXAS']
+    lar_df = lar_df[(lar_df['county_code'] == 'Tarrant County') | (lar_df['county_code'] == 'Collin County') | (lar_df['county_code'] == 'Dallas County')]
+    lar_df = lar_df.rename(columns = lambda x: x.strip())
     
     # read in transmittal sheet records as df
     ts_df = pd.read_csv(os.path.join(data_folder, "2022_public_ts_csv.csv"))
     
-    # replacing values of "agency_code" with actual string fields in transmittal sheet dataset
+    # replacing values of "agency_code" with actual string fields in transmittal sheet dataset and removing whitespace from column names
     ts_df['agency_code'] = ts_df['agency_code'].map({1:"Office of the Comptroller of the Currency",
                                                      2:"Federal Reserve System",
                                                      3:"Federal Deposit Insurance Corporation",
                                                      5:"National Credit Union Administration",
                                                      7:"Department of Housing and Urban Development",
                                                      9:"Consumer Financial Protection Bureau"})
+    ts_df = ts_df.rename(columns = lambda x: x.strip())    
 
     # read in reporter panel data as df
     panel_df = pd.read_csv(os.path.join(data_folder, '2022_public_panel_csv.csv'), na_values = [-1]) # -1 is being encoded for NULL so I am replacing 
@@ -774,23 +802,23 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
                                                                        2:"MBS of bank holding company",
                                                                        3:"Independent mortgage banking subsidiary",
                                                                        5:"Affiliate of a depository institution"}) 
-    # renaming upper field to lei
+    # renaming upper field to lei and removing whitespace from column names 
     panel_df.rename(columns = {'upper':'lei'}, inplace = True)
-    
+    panel_df = panel_df.rename(columns = lambda x: x.strip())
+
     # read in metropolitan statistical area and metropolitan division data as df
     msamd_df = pd.read_csv(os.path.join(data_folder, '2022_public_msamd_csv.csv')) # nothing written in data dictionary saying 99999 is na but it does
                                                         # not look like a legitamate msa_md code
 
-    # recast data types
+    # recast data types and removing whitespace from column names 
     msamd_df = msamd_df.astype({"msa_md":str})
-    
+    msamd_df = msamd_df.rename(columns = lambda x: x.strip())    
         
     # arid_2017 = pd.read_csv('arid2017_to_lei_xref_csv.csv') # not using for the moment because not joining in previous 
                                                               # years so do not need to use                                                         
         
     hmda_dict = {"lar_df":lar_df,"ts_df":ts_df, "panel_df":panel_df, "msamd_df":msamd_df}
    
-    
     return hmda_dict
 
 # cra helper function      
@@ -1837,7 +1865,7 @@ def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict
     return df_dict
 
 def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
-    """" Multiplies all fields in cra data that contain total loan amounts by 1000.
+    """" Multiplies all fields in cra data that contain total loan amounts by 1000, subsets all files in dictionary for disclosure 1-1 and disclosure 6 datasets, then subsets those datasets for entires in Texas and in counties of focus.
         
     Args:
         df_dict: A dictionary of cra dataframes reulting from the state_county_fips_mapper function. 
@@ -1858,6 +1886,24 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     # filter Discl 6 down to Texas and Tarrant, Collin, and Dallas counties
     df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][df_dict['cra2021_Discl_D6.dat']['State'] == 'TEXAS']
     df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][(df_dict['cra2021_Discl_D6.dat']['County'] == 'Tarrant County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Collin County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Dallas County')]
+
+    # remove leading and trailing whitespace from column of all datasets 
+    df_dict['cra2021_Aggr_A11.dat'] = df_dict['cra2021_Aggr_A11.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A11a.dat'] = df_dict['cra2021_Aggr_A11a.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A12.dat'] = df_dict['cra2021_Aggr_A12.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A12a.dat'] = df_dict['cra2021_Aggr_A12a.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A21.dat'] = df_dict['cra2021_Aggr_A21.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A21a.dat'] = df_dict['cra2021_Aggr_A21a.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A22.dat'] = df_dict['cra2021_Aggr_A22.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Aggr_A22a.dat'] = df_dict['cra2021_Aggr_A22a.dat'].rename(columns = lambda x: x.strip()) 
+    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D12.dat'] = df_dict['cra2021_Discl_D12.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D21.dat'] = df_dict['cra2021_Discl_D21.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D22.dat'] = df_dict['cra2021_Discl_D22.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D3.dat'] = df_dict['cra2021_Discl_D3.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D4.dat'] = df_dict['cra2021_Discl_D4.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D5.dat'] = df_dict['cra2021_Discl_D5.dat'].rename(columns = lambda x: x.strip())
+    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'].rename(columns = lambda x: x.strip())
 
     # Only keep D11 and D6 (to cut down on memory issues)
     final_cra_dict = {'cra2021_Discl_D11.dat': df_dict['cra2021_Discl_D11.dat'], # Small business loans by County level
@@ -1883,6 +1929,7 @@ def changec_label_adder(file_name:str)->dict[str:str]:
         if "CHANGEC" in original_field: 
             col_name_replace_map[original_field] = col_name_replace_map[original_field] + " " + original_field.split('CHANGEC')[1]
     col_name_replace_map['FED_RSSD'] = 'Federal Reserve ID Number 2'
+    col_name_replace_map['TRACT'] = 'Institutions with reportable fiduciary related service'
     return col_name_replace_map  
 
 def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[str:str])->pd.core.frame.DataFrame:
@@ -1896,7 +1943,7 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
         A dataframe of the fdic institutions data
         """
     institutions_df = pd.read_csv(institutions_file_name)
-    institutions_df.rename(columns = col_replace_map, inplace = True)
+    institutions_df = institutions_df.rename(columns = col_replace_map)
     # map in values for columns using numbers to represnet description
     institutions_df['Institution Status'] = institutions_df['Institution Status'].map({ 1:'Institutions that are currently open and insured by the FDIC',
                                                                                         0:'Institution closed or not insured by FDIC'})  
@@ -1996,6 +2043,7 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
     # institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
     # institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
     institutions_df = institutions_df.reset_index().set_index('FDIC Certificate #').reset_index()
+    institutions_df = institutions_df.rename(columns = lambda x: x.strip())
     return institutions_df
 
 def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.frame.DataFrame:
@@ -2026,6 +2074,7 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     # filter for location in texas and counties that are dallas, collins or tarrant
     fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch State   '] == 'Texas']
     final_fdic_locations_df = fdic_locations_df[(fdic_locations_df['Branch County'] == 'Tarrant') | (fdic_locations_df['Branch County'] == 'Collin') | (fdic_locations_df['Branch County'] == 'Dallas')]
+    final_fdic_locations_df = final_fdic_locations_df.rename(columns = lambda x: x.strip())
     return final_fdic_locations_df
 
 # sba helper function
@@ -2093,10 +2142,10 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
     foia_7a_2020_df.columns = new_columns
 
-    # subset for entries that have an approval date in 2022
+    # subset for entries that have an approval date in 2022 and remove leading and trailing whitespace from columns names
     foia_7a_2020_df['ApprovalDate'] = pd.to_datetime(foia_7a_2020_df['ApprovalDate'], format = '%m/%d/%Y')
     foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['ApprovalDate'] > '2021-12-31') & (foia_7a_2020_df['ApprovalDate'] < '2023-01-01')]
-
+    foia_7a_2020_df = foia_7a_2020_df.rename(columns = lambda x: x.strip())
     return foia_7a_2020_df
 
 
