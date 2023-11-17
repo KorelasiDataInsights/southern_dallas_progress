@@ -11,6 +11,10 @@ import numpy as np
 import requests
 import re
 from datetime import datetime
+import zipcodes
+import census_geocoder as geocoder
+from tqdm import tqdm # to display a progress bar 
+
 
 # General  functions not specific to data source
 def format_census_tract(tract_number):
@@ -51,8 +55,104 @@ def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
             counties_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
     return {'fcc_states':state_fips_dict,'fcc_counties':counties_fips_dict}
 
+def get_zip_codes(county_name:str, abbrev_state:str = "TX")->list[str]:
+    """Used to find all unique zipcodes associates with a given county and state.
+
+    Args:
+        county_name: name of county you want to find the associated zip codes of. 
+        abbrev_state: name of county you want to find the associated zip codes of.
+    Returns: 
+        A list of zipcodes associates with th provided county and state.
+    """
+    if " County" not in county_name:
+     county_name = county_name + " County"
+
+    try:
+        zip_list = zipcodes.filter_by(county = county_name, state = abbrev_state)
+
+        zips_raw = [i['zip_code'] for i in zip_list]
+        zips_unique = pd.Series(zips_raw).drop_duplicates().tolist()
+        zips_unique.sort()
+
+        #print(f"{len(zips_unique)} unique zip codes found in {county_name}")
+        return zips_unique
+    
+    except:
+        return None
+
+def county_to_countyzip_dict(county_to_search:list[str])->dict[str:set]:
+    """Used to create a dictionary of counties with zipcodes. This only has to be run once so the later mapping runs faster.
+
+    Args:
+        county_to_search: county that will be returned with zip codes
+    
+    Returns: 
+        A dictionary of counties associated with zip codes. 
+    """
+    county_zips_dct = {}
+    for county_i in county_to_search:
+        zips_for_county = set(get_zip_codes(county_name = county_i, abbrev_state = "TX"))
+        county_zips_dct[county_i] = zips_for_county
+    return county_zips_dct   
+
+def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
+    """Used to return name of county associated with a given zip code.
+
+    Args:
+        zpcode: provided zipcode 
+        zips_dct: a dictionary that has county names as keys and the associated zip codes in a list as the value.
+    
+    Returns:
+        The name of the county associated with the zip code as a value.
+    """
+    if zpcode in zips_dct["Dallas"]:
+        return "Dallas County"
+    elif zpcode in zips_dct["Collin"]:
+        return "Collin County"
+    elif zpcode in zips_dct["Tarrant"]:
+        return "Tarrant County"
+    else: 
+        return "Other"
+
+def get_census_geocode(address_str:str)->dict[str:str]:
+    """Takes in an address and returns the Census Tract, County and State associated with it if available.
+
+    Args: 
+        address_str: the address string that the returned Census Tract, County and State will be based on.
+
+    Returns:
+        A dictionary containing the Census Tract, County and State associated with the provided address if they are available.
+    """
+    try:
+      # Get census geocoding
+      geo_dict = geocoder.geography.from_address(address_str).__dict__
+    
+      # # Get geographical details
+      geo = geo_dict['extensions']['result']['addressMatches'][0]['geographies']
+    
+      # Get census tract(s)... hopefully there's only one?
+      # If more than 1, print a warning: 
+      #        print(f"{len(census_tracts)} census tracts found. Using first result")
+      # Similar for states and counties
+    
+      census_tracts = [i['TRACT'] for i in geo['Census Tracts']]
+      counties = [i['BASENAME'] for i in geo['Counties']]
+      states = [i['BASENAME'] for i in geo['States']]    
+    
+      return {
+          'state': states[0],
+          'county': counties[0],
+          'census_tract': census_tracts[0],
+      }
+    except:
+        return {
+          'state': None,
+          'county': None,
+          'census_tract': None,
+      }
+    
 # census tract helper function
-def census_data_ingester(file_name:str) :
+def census_data_ingester(census_file_common_string:str)-> pd.core.frame.DataFrame:
     """"Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
     and transformed into a format that can be used for join on future tract years where 'tract','county',and 'state'
     are the composite primary key.
@@ -62,34 +162,12 @@ def census_data_ingester(file_name:str) :
         
     Returns:
          A dataframe of the downloaded and transformed zip file
-         
-    Raises: 
-        TypeError: if n is not a string.
     """
     
-    # code to ingest from url to be added(work being done on census website)
+    # code to ingest from url to be added
     #---
     
     # transform ingested data
-    data = pd.read_csv(file_name)
-    data = data.T
-    data = data.reset_index()
-    data.columns = data.iloc[0]
-    data['test1'] = data['Label (Grouping)'].str.split(',').to_frame()
-    data[['tract','county','state']] = pd.DataFrame(data['test1'].to_list(), columns = ['tract','county','state'])[['tract','county','state']]
-    data = data.drop(data.index[0])
-    data = data.drop(columns = ['test1'])#, axis = 1)
-    data = data.drop(columns = ['Label (Grouping)'])#, axis = 1)
-    data['tract'] = data['tract'].str.replace('Census Tract', '').str.strip().apply(float).apply(format_census_tract)
-    data = data.set_index(['tract','county','state'])
-    data.columns = list(data.columns.str.replace(u'\xa0', u' ').str.replace(':','').str.lstrip(' ')) # remove \xa0 Latin1 characters and ":" in column names
-    data = data.replace('[^0-9.]', '', regex = True) # replace commas in entry values with nothing 
-    data = data.apply(pd.to_numeric,downcast = 'float') #convert all count values to floats for later calculations 
-    data = data.rename(columns = lambda x: x.strip())
-    #data = data
-    return data
-
-def census_data_ingester2(census_file_common_string:str)-> pd.core.frame.DataFrame:
     census_files = [os.path.join('data', i) for i in os.listdir('data/') if census_file_common_string in i]
     census_df_list = []
     for file_name in census_files:
@@ -2075,6 +2153,21 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch State   '] == 'Texas']
     final_fdic_locations_df = fdic_locations_df[(fdic_locations_df['Branch County'] == 'Tarrant') | (fdic_locations_df['Branch County'] == 'Collin') | (fdic_locations_df['Branch County'] == 'Dallas')]
     final_fdic_locations_df = final_fdic_locations_df.rename(columns = lambda x: x.strip())
+    # create county column based on zipcodes column
+    zips1 = county_to_countyzip_dict(["Dallas","Collin","Tarrant"])
+    final_fdic_locations_df['County_from_Zipcode'] = final_fdic_locations_df['Branch Zip Code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
+
+    # create columns for census tract and county  based on branch address
+    final_fdic_locations_df['Full Branch Address'] = final_fdic_locations_df['Branch Address'] + ', ' + final_fdic_locations_df['Branch City'] + ', ' + final_fdic_locations_df['Branch State Abbreviation'] + ' ' + final_fdic_locations_df['Branch Zip Code'].apply(str)
+    tqdm.pandas()
+    final_fdic_locations_df['data_from_adr_geocode'] = final_fdic_locations_df['Full Branch Address'].progress_apply(lambda x: get_census_geocode(x))
+    final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['county'])
+    final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['county_from_address'] + ' County'
+    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
+    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
+    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].apply(format_census_tract)
+    final_fdic_locations_df = final_fdic_locations_df.drop(columns = ['Full Branch Address'])
+
     return final_fdic_locations_df
 
 # sba helper function
@@ -2142,10 +2235,32 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
     foia_7a_2020_df.columns = new_columns
 
+    # map in full state names
+    ssa_url = 'https://www.ssa.gov/international/coc-docs/states.html'
+    state_abbrev_map = state_abrevs_getter(ssa_url)
+    foia_7a_2020_df['Borrower state'] = foia_7a_2020_df['Borrower state'].map(state_abbrev_map)
+
     # subset for entries that have an approval date in 2022 and remove leading and trailing whitespace from columns names
     foia_7a_2020_df['ApprovalDate'] = pd.to_datetime(foia_7a_2020_df['ApprovalDate'], format = '%m/%d/%Y')
     foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['ApprovalDate'] > '2021-12-31') & (foia_7a_2020_df['ApprovalDate'] < '2023-01-01')]
+    foia_7a_2020_df = foia_7a_2020_df[foia_7a_2020_df['Borrower state'] == 'TEXAS']
     foia_7a_2020_df = foia_7a_2020_df.rename(columns = lambda x: x.strip())
+
+    # create county column based on zipcodes column 
+    zips1 = county_to_countyzip_dict(["Dallas","Collin","Tarrant"])
+    foia_7a_2020_df['County_from_Zipcode'] = foia_7a_2020_df['Borrower zip code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
+
+    # create columns for census tract and county  based on borrower address
+    foia_7a_2020_df['Full Address'] = foia_7a_2020_df['Borrower street address'] + ', ' + foia_7a_2020_df['Borrower city'] + ', ' + foia_7a_2020_df['Borrower state'] + ' ' + foia_7a_2020_df['Borrower zip code'].apply(str)
+    tqdm.pandas()
+    foia_7a_2020_df['data_from_adr_geocode'] = foia_7a_2020_df['Full Address'].progress_apply(lambda x: get_census_geocode(x))
+    foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['county'])
+    foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['county_from_address'] + ' County'
+    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
+    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
+    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].apply(format_census_tract)
+    foia_7a_2020_df = foia_7a_2020_df.drop(columns = ['Full Address'])
+
     return foia_7a_2020_df
 
 
