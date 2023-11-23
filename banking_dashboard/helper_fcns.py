@@ -13,7 +13,13 @@ import re
 from datetime import datetime
 import zipcodes
 import census_geocoder as geocoder
-from tqdm import tqdm # to display a progress bar 
+from tqdm import tqdm # to display a progress bar
+from validator_collection import validators
+from census_geocoder.constants import CENSUS_API_URL
+from backoff_utils import backoff
+import requests
+import csv
+import time
 
 
 # General  functions not specific to data source
@@ -114,43 +120,82 @@ def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
     else: 
         return "Other"
 
-def get_census_geocode(address_str:str)->dict[str:str]:
-    """Takes in an address and returns the Census Tract, County and State associated with it if available.
+# #def get_census_geocode(address_str:str)->dict[str:str]:
+#     """Takes in an address and returns the Census Tract, County and State associated with it if available.
 
-    Args: 
-        address_str: the address string that the returned Census Tract, County and State will be based on.
+#     Args: 
+#         address_str: the address string that the returned Census Tract, County and State will be based on.
 
-    Returns:
-        A dictionary containing the Census Tract, County and State associated with the provided address if they are available.
-    """
-    try:
-      # Get census geocoding
-      geo_dict = geocoder.geography.from_address(address_str).__dict__
+#     Returns:
+#         A dictionary containing the Census Tract, County and State associated with the provided address if they are available.
+#     """
+#     try:
+#       # Get census geocoding
+#       geo_dict = geocoder.geography.from_address(address_str).__dict__
     
-      # # Get geographical details
-      geo = geo_dict['extensions']['result']['addressMatches'][0]['geographies']
+#       # # Get geographical details
+#       geo = geo_dict['extensions']['result']['addressMatches'][0]['geographies']
     
-      # Get census tract(s)... hopefully there's only one?
-      # If more than 1, print a warning: 
-      #        print(f"{len(census_tracts)} census tracts found. Using first result")
-      # Similar for states and counties
+#       # Get census tract(s)... hopefully there's only one?
+#       # If more than 1, print a warning: 
+#       #        print(f"{len(census_tracts)} census tracts found. Using first result")
+#       # Similar for states and counties
     
-      census_tracts = [i['TRACT'] for i in geo['Census Tracts']]
-      counties = [i['BASENAME'] for i in geo['Counties']]
-      states = [i['BASENAME'] for i in geo['States']]    
+#       census_tracts = [i['TRACT'] for i in geo['Census Tracts']]
+#       counties = [i['BASENAME'] for i in geo['Counties']]
+#       states = [i['BASENAME'] for i in geo['States']]    
     
-      return {
-          'state': states[0],
-          'county': counties[0],
-          'census_tract': census_tracts[0],
-      }
-    except:
-        return {
-          'state': None,
-          'county': None,
-          'census_tract': None,
-      }
+#       return {
+#           'state': states[0],
+#           'county': counties[0],
+#           'census_tract': census_tracts[0],
+#       }
+#     except:
+#         return {
+#           'state': None,
+#           'county': None,
+#           'census_tract': None,
+#       }
     
+def census_batch_lookup(filename):
+
+  DEFAULT_BENCHMARK = os.environ.get('CENSUS_GEOCODER_BENCHMARK', 'CURRENT')
+  DEFAULT_VINTAGE = os.environ.get('CENSUS_GEOCODER_VINTAGE', 'CURRENT')
+  DEFAULT_LAYERS = os.environ.get('CENSUS_GEOCODER_LAYERS', 'all')
+
+  print("Validate file existence")
+  file_ = validators.file_exists(filename, allow_empty = False)
+
+  print("Get batch addresses")
+  result_ = geocoder.geography._get_batch_addresses(file_ = file_,
+                                          benchmark = DEFAULT_BENCHMARK,
+                                          vintage = DEFAULT_VINTAGE,
+                                          layers = DEFAULT_LAYERS)
+  
+  print("Get results that were non-failures")
+  res_nonfail = [i for i in result_ if len(i) >3]
+ 
+  print(f"{len(res_nonfail)} out of {len(result_)} succeeded")
+
+  print("Extract geographic components")
+  res2 = [geocoder.geography.from_csv_record(x) for x in res_nonfail]
+
+  print("Extract components as dicts")
+  out = [i.__dict__ for i in res2]
+
+  print("Format result")
+  out_df = pd.DataFrame(out)
+  out_df['_latitude'] = [out_df['extensions'][k]['latitute'] for k in range(0,out_df.shape[0])]
+  out_df.dropna(how='all', axis=1, inplace=True) 
+  out_df['Borrower name'] = [i[0] for i in res_nonfail]
+  out_df['Borrower street address'] = [i[1] for i in res_nonfail]
+  out_df['Match result'] = [i[2] for i in res_nonfail]
+  out_df['Match type'] = [i[3] for i in res_nonfail]
+
+  print("Done")
+
+  return out_df
+
 # census tract helper function
 def census_data_ingester(census_file_common_string:str)-> pd.core.frame.DataFrame:
     """"Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
@@ -2251,15 +2296,36 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     foia_7a_2020_df['County_from_Zipcode'] = foia_7a_2020_df['Borrower zip code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
 
     # create columns for census tract and county  based on borrower address
-    foia_7a_2020_df['Full Address'] = foia_7a_2020_df['Borrower street address'] + ', ' + foia_7a_2020_df['Borrower city'] + ', ' + foia_7a_2020_df['Borrower state'] + ' ' + foia_7a_2020_df['Borrower zip code'].apply(str)
-    tqdm.pandas()
-    foia_7a_2020_df['data_from_adr_geocode'] = foia_7a_2020_df['Full Address'].progress_apply(lambda x: get_census_geocode(x))
-    foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['county'])
-    foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['county_from_address'] + ' County'
-    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
-    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
-    foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].apply(format_census_tract)
-    foia_7a_2020_df = foia_7a_2020_df.drop(columns = ['Full Address'])
+    #foia_7a_2020_df['Full Address'] = foia_7a_2020_df['Borrower street address'] + ', ' + foia_7a_2020_df['Borrower city'] + ', ' + foia_7a_2020_df['Borrower state'] + ' ' + foia_7a_2020_df['Borrower zip code'].apply(str)
+    # tqdm.pandas()
+    # foia_7a_2020_df['data_from_adr_geocode'] = foia_7a_2020_df['Full Address'].progress_apply(lambda x: get_census_geocode(x))
+    # foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['county'])
+    # foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['county_from_address'] + ' County'
+    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
+    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
+    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].apply(format_census_tract)
+    # foia_7a_2020_df = foia_7a_2020_df.drop(columns = ['Full Address'])
+
+    # create a subset dataset of the sba data that will be used to batch search for census and related geographic information 
+    foia_7a_2020_df = foia_7a_2020_df.reset_index()
+    foia_7a_2020_df['index'] = foia_7a_2020_df['index'].apply(str)
+    foia_7a_2020_df['Borrower name'] = '(' + foia_7a_2020_df['index'] +') '+  foia_7a_2020_df['Borrower name'] 
+    foia_7a_2020_df[['Borrower name','Borrower street address','Borrower city', 'Borrower state','Borrower zip code']].set_index('Borrower name').to_csv('data/sba_sample.csv')
+
+    # lookup census codes for batch  
+    start = time.time()
+    b = census_batch_lookup('data/sba_sample.csv')
+    end = time.time()
+    print('process completed in',end - start, 'seconds')
+
+    # merge in new census codes to original dataset
+    b = b.reset_index()
+    b['index'] = b['Borrower name'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
+    foia_7a_2020_df = pd.merge(foia_7a_2020_df,b, left_on = ['index'], right_on = ['index'], how = 'left')
+    
+    #reformat census tract column
+    foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(float)/100
+    foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(format_census_tract)
 
     return foia_7a_2020_df
 
