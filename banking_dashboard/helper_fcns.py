@@ -157,7 +157,7 @@ def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
 #           'census_tract': None,
 #       }
     
-def census_batch_lookup(filename):
+def census_batch_lookup(filename:str, srch_level:str):
 
   DEFAULT_BENCHMARK = os.environ.get('CENSUS_GEOCODER_BENCHMARK', 'CURRENT')
   DEFAULT_VINTAGE = os.environ.get('CENSUS_GEOCODER_VINTAGE', 'CURRENT')
@@ -187,8 +187,8 @@ def census_batch_lookup(filename):
   out_df = pd.DataFrame(out)
   out_df['_latitude'] = [out_df['extensions'][k]['latitute'] for k in range(0,out_df.shape[0])]
   out_df.dropna(how='all', axis=1, inplace=True) 
-  out_df['Borrower name'] = [i[0] for i in res_nonfail]
-  out_df['Borrower street address'] = [i[1] for i in res_nonfail]
+  out_df[srch_level + ' identifier'] = [i[0] for i in res_nonfail]
+  out_df[srch_level + ' street address'] = [i[1] for i in res_nonfail]
   out_df['Match result'] = [i[2] for i in res_nonfail]
   out_df['Match type'] = [i[3] for i in res_nonfail]
 
@@ -2203,16 +2203,46 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     final_fdic_locations_df['County_from_Zipcode'] = final_fdic_locations_df['Branch Zip Code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
 
     # create columns for census tract and county  based on branch address
-    final_fdic_locations_df['Full Branch Address'] = final_fdic_locations_df['Branch Address'] + ', ' + final_fdic_locations_df['Branch City'] + ', ' + final_fdic_locations_df['Branch State Abbreviation'] + ' ' + final_fdic_locations_df['Branch Zip Code'].apply(str)
-    tqdm.pandas()
-    final_fdic_locations_df['data_from_adr_geocode'] = final_fdic_locations_df['Full Branch Address'].progress_apply(lambda x: get_census_geocode(x))
-    final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['county'])
-    final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['county_from_address'] + ' County'
-    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
-    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
-    final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].apply(format_census_tract)
-    final_fdic_locations_df = final_fdic_locations_df.drop(columns = ['Full Branch Address'])
+    # final_fdic_locations_df['Full Branch Address'] = final_fdic_locations_df['Branch Address'] + ', ' + final_fdic_locations_df['Branch City'] + ', ' + final_fdic_locations_df['Branch State Abbreviation'] + ' ' + final_fdic_locations_df['Branch Zip Code'].apply(str)
+    # tqdm.pandas()
+    # final_fdic_locations_df['data_from_adr_geocode'] = final_fdic_locations_df['Full Branch Address'].progress_apply(lambda x: get_census_geocode(x))
+    # final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['county'])
+    # final_fdic_locations_df['county_from_address'] = final_fdic_locations_df['county_from_address'] + ' County'
+    # final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
+    # final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
+    # final_fdic_locations_df['census_tract_from_address'] = final_fdic_locations_df['census_tract_from_address'].apply(format_census_tract)
+    # final_fdic_locations_df = final_fdic_locations_df.drop(columns = ['Full Branch Address'])
 
+    # create a subset dataset of the fdic locations data that will be used to batch search for census and related geographic information
+    final_fdic_locations_df = final_fdic_locations_df.reset_index()
+    final_fdic_locations_df['index'] = final_fdic_locations_df['index'].apply(str)
+    final_fdic_locations_df['idx_branch_number'] = '(' + final_fdic_locations_df['index'] +') '+  final_fdic_locations_df['Branch Number'].apply(str)
+    final_fdic_locations_df[['idx_branch_number','Branch Address','Branch City', 'Branch State Abbreviation','Branch Zip Code']].set_index('idx_branch_number').to_csv('data/fdic_locations_sample.csv')
+
+    # lookup census codes for batch  
+    start = time.time()
+    b = census_batch_lookup('data/fdic_locations_sample.csv', 'Branch')
+    end = time.time()
+    print('process completed in',end - start, 'seconds')
+
+    # merge in new census codes to original dataset
+    b = b.reset_index()
+    b['index'] = b['Branch identifier'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
+    final_fdic_locations_df = pd.merge(final_fdic_locations_df,b, left_on = ['index'], right_on = ['index'], how = 'left')
+
+    # reformat census tract column
+    final_fdic_locations_df['_tract'] = final_fdic_locations_df['_tract'].apply(float)/100
+    final_fdic_locations_df['_tract'] = final_fdic_locations_df['_tract'].apply(format_census_tract)
+
+    # map in state and county names 
+    url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
+    fips_dict = fcc_fips_mappings_getter(url)
+    final_fdic_locations_df['_county_fips_code'] = final_fdic_locations_df['_state_fips_code'].apply(str) + final_fdic_locations_df['_county_fips_code'].apply(str)
+    final_fdic_locations_df['_county_fips_code'] = final_fdic_locations_df['_county_fips_code'].map(fips_dict['fcc_counties'])
+    final_fdic_locations_df['_state_fips_code'] = final_fdic_locations_df['_state_fips_code'].map(fips_dict['fcc_states'])
+    final_fdic_locations_df = final_fdic_locations_df.rename(columns = {'_county_fips_code':'_fips_county_name', '_state_fips_code':'_fips_state_name'})
+    final_fdic_locations_df['Branch County'] = final_fdic_locations_df['Branch County'] + ' County'
+    
     return final_fdic_locations_df
 
 # sba helper function
@@ -2314,18 +2344,26 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
 
     # lookup census codes for batch  
     start = time.time()
-    b = census_batch_lookup('data/sba_sample.csv')
+    b = census_batch_lookup('data/sba_sample.csv', 'Borrower')
     end = time.time()
     print('process completed in',end - start, 'seconds')
 
     # merge in new census codes to original dataset
     b = b.reset_index()
-    b['index'] = b['Borrower name'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
+    b['index'] = b['Borrower identifier'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
     foia_7a_2020_df = pd.merge(foia_7a_2020_df,b, left_on = ['index'], right_on = ['index'], how = 'left')
     
-    #reformat census tract column
+    # reformat census tract column
     foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(float)/100
     foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(format_census_tract)
+
+    # map in county names 
+    url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
+    fips_dict = fcc_fips_mappings_getter(url)
+    foia_7a_2020_df['_county_fips_code'] = foia_7a_2020_df['_state_fips_code'].apply(str) + foia_7a_2020_df['_county_fips_code'].apply(str)
+    foia_7a_2020_df['_county_fips_code'] = foia_7a_2020_df['_county_fips_code'].map(fips_dict['fcc_counties'])
+    foia_7a_2020_df['_state_fips_code'] = foia_7a_2020_df['_state_fips_code'].map(fips_dict['fcc_states'])
+    foia_7a_2020_df = foia_7a_2020_df.rename(columns = {'_county_fips_code':'_fips_county_name', '_state_fips_code':'_fips_state_name'})
 
     return foia_7a_2020_df
 
