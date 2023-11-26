@@ -2365,8 +2365,8 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     foia_7a_2020_df['_state_fips_code'] = foia_7a_2020_df['_state_fips_code'].map(fips_dict['fcc_states'])
     foia_7a_2020_df = foia_7a_2020_df.rename(columns = {'_county_fips_code':'_fips_county_name', '_state_fips_code':'_fips_state_name'})
 
+    # create "county_final" column that will be based on address at default and zip codes county of NaN and then filter down to counties of focus using this new column
+    foia_7a_2020_df['county_final'] = np.where(foia_7a_2020_df['_fips_county_name'].apply(str) == 'nan', foia_7a_2020_df['County_from_Zipcode'], foia_7a_2020_df['_fips_county_name'])
+    foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['county_final'] == 'Tarrant County') | (foia_7a_2020_df['county_final'] == 'Collin County') | (foia_7a_2020_df['county_final'] == 'Dallas County')]
+
     return foia_7a_2020_df
-
-
-
-
