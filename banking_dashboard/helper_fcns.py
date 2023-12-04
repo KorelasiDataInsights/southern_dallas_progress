@@ -120,7 +120,7 @@ def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
     else: 
         return "Other"
 
-# #def get_census_geocode(address_str:str)->dict[str:str]:
+# def get_census_geocode(address_str:str)->dict[str:str]:
 #     """Takes in an address and returns the Census Tract, County and State associated with it if available.
 
 #     Args: 
@@ -258,7 +258,7 @@ def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.cor
     if ingest_all:
         data = pd.read_csv(file, header = None)
     else:
-        data = pd.read_csv(file, nrows = 8000, header = None)
+        data = pd.read_csv(file, header = None) #nrows = 8000,
     old_ffiec_cols = data.columns
     replacement_map = dict(zip(old_ffiec_cols,new_ffiec_cols))
     data.rename(columns = replacement_map, inplace=True)
@@ -378,522 +378,534 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     # of storing file. When analyzing the LAR dataset, using the dask library will work specificlly dask.dataframe().
 
     # read in loan/application records as df
-    lar_df = pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'), nrows = 50000)
+    #lar_df = pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'),  nrows = 2000000) 
     # mapping values for columns in Loan/Application Records(LAR)
+    counter = 0
+    lar_df_full = pd.DataFrame()
+    for lar_df_chunk in pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'), chunksize=50000):
+        lar_df_chunk['conforming_loan_limit'] = lar_df_chunk['conforming_loan_limit'].map({"C (Conforming)":"Conforming",
+                                                    "NC (Nonconforming)":"Nonconforming",
+                                                    "U (Undetermined)":"Undetermined",
+                                                    "NA (Not Applicable)":"Not Applicable"})
+        
+        lar_df_chunk['action_taken'] = lar_df_chunk['action_taken'].map({1:"Loan originated",
+                                                            2:"Application approved but not accepted",
+                                                            3:"Application denied",
+                                                            4:"Application withdrawn by applicant",
+                                                            5:"File closed for incompleteness",
+                                                            6:"Purchased loan",
+                                                            7:"Preapproval request denied",
+                                                            8:"Preapproval request approved but not accepted"})
 
-    lar_df['conforming_loan_limit'] = lar_df['conforming_loan_limit'].map({"C (Conforming)":"Conforming",
-                                                   "NC (Nonconforming)":"Nonconforming",
-                                                   "U (Undetermined)":"Undetermined",
-                                                   "NA (Not Applicable)":"Not Applicable"})
-    
-    lar_df['action_taken'] = lar_df['action_taken'].map({1:"Loan originated",
-                                                         2:"Application approved but not accepted",
-                                                         3:"Application denied",
-                                                         4:"Application withdrawn by applicant",
-                                                         5:"File closed for incompleteness",
-                                                         6:"Purchased loan",
-                                                         7:"Preapproval request denied",
-                                                         8:"Preapproval request approved but not accepted"})
+        lar_df_chunk['purchaser_type'] = lar_df_chunk['purchaser_type'].map({0:"Not applicable",
+                                                                1:"Fannie Mae",
+                                                                2:"Ginnie Mae",
+                                                                3:"Freddie Mac",
+                                                                4:"Farmer Mac",
+                                                                5:"Private securitizer",
+                                                                6:"Commercial bank, savings bank, or savings association",
+                                                                71:"Credit union, mortgage company, or finance company",
+                                                                72:"Life insurance company",
+                                                                8:"Affiliate institution",
+                                                                9:"Other type of purchase r"})
+        
+        lar_df_chunk['preapproval'] = lar_df_chunk['preapproval'].map({1:"Preapproval requested",
+                                                        2:"Preapproval not requested"})
 
-    lar_df['purchaser_type'] = lar_df['purchaser_type'].map({0:"Not applicable",
-                                                             1:"Fannie Mae",
-                                                             2:"Ginnie Mae",
-                                                             3:"Freddie Mac",
-                                                             4:"Farmer Mac",
-                                                             5:"Private securitizer",
-                                                             6:"Commercial bank, savings bank, or savings association",
-                                                             71:"Credit union, mortgage company, or finance company",
-                                                             72:"Life insurance company",
-                                                             8:"Affiliate institution",
-                                                             9:"Other type of purchase r"})
-    
-    lar_df['preapproval'] = lar_df['preapproval'].map({1:"Preapproval requested",
-                                                       2:"Preapproval not requested"})
+        
+        lar_df_chunk['loan_type'] = lar_df_chunk['loan_type'].map({1:"Conventional (not insured or guaranteed by FHA, VA, RHS, or FSA)",
+                                                    2:"Federal Housing Administration insured (FHA)",
+                                                    3:"Veterans Affairs guaranteed (VA)",
+                                                    4:"USDA Rural Housing Service or Farm Service Agency guaranteed (RHS or FSA)"})
+        
+        lar_df_chunk['loan_purpose'] = lar_df_chunk['loan_purpose'].map({1:"Home purchase",
+                                                            2:"Home improvement",
+                                                            31:"Refinancing",
+                                                            32:"Cash-out refinancing",
+                                                            4:"Other purpose",
+                                                            5:"Not applicable"})
 
-    
-    lar_df['loan_type'] = lar_df['loan_type'].map({1:"Conventional (not insured or guaranteed by FHA, VA, RHS, or FSA)",
-                                                   2:"Federal Housing Administration insured (FHA)",
-                                                   3:"Veterans Affairs guaranteed (VA)",
-                                                   4:"USDA Rural Housing Service or Farm Service Agency guaranteed (RHS or FSA)"})
-    
-    lar_df['loan_purpose'] = lar_df['loan_purpose'].map({1:"Home purchase",
-                                                         2:"Home improvement",
-                                                         31:"Refinancing",
-                                                         32:"Cash-out refinancing",
-                                                         4:"Other purpose",
-                                                         5:"Not applicable"})
+        lar_df_chunk['lien_status'] = lar_df_chunk['lien_status'].map({1:"Secured by a first lien",
+                                                        2:"Secured by a subordinate lien"})  
 
-    lar_df['lien_status'] = lar_df['lien_status'].map({1:"Secured by a first lien",
-                                                       2:"Secured by a subordinate lien"})  
+        lar_df_chunk['reverse_mortgage'] = lar_df_chunk['reverse_mortgage'].map({1:"Reverse mortgage",
+                                                                    2:"Not a reverse mortgage",
+                                                                    1111:"Exempt"})  
+        
+        lar_df_chunk['open_end_line_of_credit'] = lar_df_chunk['open_end_line_of_credit'].map({1:"Open-end line of credit",
+                                                                                2:"Not an open-end line of credit",
+                                                                                1111:"Exempt"})  
 
-    lar_df['reverse_mortgage'] = lar_df['reverse_mortgage'].map({1:"Reverse mortgage",
-                                                                 2:"Not a reverse mortgage",
-                                                                 1111:"Exempt"})  
-    
-    lar_df['open_end_line_of_credit'] = lar_df['open_end_line_of_credit'].map({1:"Open-end line of credit",
-                                                                               2:"Not an open-end line of credit",
-                                                                               1111:"Exempt"})  
+        lar_df_chunk['business_or_commercial_purpose'] = lar_df_chunk['business_or_commercial_purpose'].map({1:"Primarily for a business or commercial purpose",
+                                                                                                2:"Not primarily for a business or commercial purpose",
+                                                                                                1111:"Exempt"})
 
-    lar_df['business_or_commercial_purpose'] = lar_df['business_or_commercial_purpose'].map({1:"Primarily for a business or commercial purpose",
-                                                                                             2:"Not primarily for a business or commercial purpose",
-                                                                                             1111:"Exempt"})
+        lar_df_chunk['hoepa_status'] = lar_df_chunk['hoepa_status'].map({1:"High-cost mortgage",
+                                                            2:"Not a high-cost mortgage",
+                                                            3:"Not applicable"})
 
-    lar_df['hoepa_status'] = lar_df['hoepa_status'].map({1:"High-cost mortgage",
-                                                         2:"Not a high-cost mortgage",
-                                                         3:"Not applicable"})
+        lar_df_chunk['negative_amortization'] = lar_df_chunk['negative_amortization'].map({1:"Negative amortization",
+                                                                            2:"No negative amortization",
+                                                                            1111:"Exempt"})
 
-    lar_df['negative_amortization'] = lar_df['negative_amortization'].map({1:"Negative amortization",
-                                                                           2:"No negative amortization",
-                                                                           1111:"Exempt"})
+        lar_df_chunk['interest_only_payment'] = lar_df_chunk['interest_only_payment'].map({1:"Interest-only payments",
+                                                                            2:"No interest-only payments",
+                                                                            1111:"Exempt"})
 
-    lar_df['interest_only_payment'] = lar_df['interest_only_payment'].map({1:"Interest-only payments",
-                                                                           2:"No interest-only payments",
-                                                                           1111:"Exempt"})
+        lar_df_chunk['balloon_payment'] = lar_df_chunk['balloon_payment'].map({1:"Balloon payment",
+                                                                2:"No balloon payment",
+                                                                1111:"Exempt"})
 
-    lar_df['balloon_payment'] = lar_df['balloon_payment'].map({1:"Balloon payment",
-                                                               2:"No balloon payment",
-                                                               1111:"Exempt"})
+        lar_df_chunk['other_nonamortizing_features'] = lar_df_chunk['other_nonamortizing_features'].map({1:"Other non-fully amortizing features",
+                                                                                            2:"No other non-fully amortizing features",
+                                                                                            1111:"Exempt"})
 
-    lar_df['other_nonamortizing_features'] = lar_df['other_nonamortizing_features'].map({1:"Other non-fully amortizing features",
-                                                                                         2:"No other non-fully amortizing features",
-                                                                                         1111:"Exempt"})
+        lar_df_chunk['construction_method'] = lar_df_chunk['construction_method'].map({1:"Site-built",
+                                                                        2:"Manufactured home"})
 
-    lar_df['construction_method'] = lar_df['construction_method'].map({1:"Site-built",
-                                                                       2:"Manufactured home"})
+        lar_df_chunk['occupancy_type'] = lar_df_chunk['occupancy_type'].map({1:"Principal residence",
+                                                                2:"Second residence",
+                                                                3:"Investment property"})
 
-    lar_df['occupancy_type'] = lar_df['occupancy_type'].map({1:"Principal residence",
-                                                             2:"Second residence",
-                                                             3:"Investment property"})
+        lar_df_chunk['manufactured_home_secured_property_type'] = lar_df_chunk['manufactured_home_secured_property_type'].map({1:"Manufactured home and land",
+                                                                                                                2:"Manufactured home and not land",
+                                                                                                                3:"Not applicable",
+                                                                                                                1111:"Exempt"})
 
-    lar_df['manufactured_home_secured_property_type'] = lar_df['manufactured_home_secured_property_type'].map({1:"Manufactured home and land",
-                                                                                                               2:"Manufactured home and not land",
-                                                                                                               3:"Not applicable",
-                                                                                                               1111:"Exempt"})
+        lar_df_chunk['manufactured_home_land_property_interest'] = lar_df_chunk['manufactured_home_land_property_interest'].map({1:"Direct ownership",
+                                                                                                                    2:"Indirect ownership",
+                                                                                                                    3:"Paid leasehold",
+                                                                                                                    4:"Unpaid leasehold",
+                                                                                                                    5:"Not applicable",
+                                                                                                                    1111:"Exempt"})
 
-    lar_df['manufactured_home_land_property_interest'] = lar_df['manufactured_home_land_property_interest'].map({1:"Direct ownership",
-                                                                                                                 2:"Indirect ownership",
-                                                                                                                 3:"Paid leasehold",
-                                                                                                                 4:"Unpaid leasehold",
-                                                                                                                 5:"Not applicable",
-                                                                                                                 1111:"Exempt"})
+        lar_df_chunk['applicant_credit_score_type'] = lar_df_chunk['applicant_credit_score_type'].map({1:"Equifax Beacon 5.0",
+                                                                                        2:"Experian Fair Isaac",
+                                                                                        3:"FICO Risk Score Classic 04",
+                                                                                        4:"FICO Risk Score Classic 98",
+                                                                                        5:"VantageScore 2.0",
+                                                                                        6:"VantageScore 3.0",
+                                                                                        7:"More than one credit scoring model",
+                                                                                        8:"Other credit scoring model",
+                                                                                        9:"Not applicable",
+                                                                                        1111:"Exempt"})
 
-    lar_df['applicant_credit_score_type'] = lar_df['applicant_credit_score_type'].map({1:"Equifax Beacon 5.0",
-                                                                                       2:"Experian Fair Isaac",
-                                                                                       3:"FICO Risk Score Classic 04",
-                                                                                       4:"FICO Risk Score Classic 98",
-                                                                                       5:"VantageScore 2.0",
-                                                                                       6:"VantageScore 3.0",
-                                                                                       7:"More than one credit scoring model",
-                                                                                       8:"Other credit scoring model",
-                                                                                       9:"Not applicable",
-                                                                                       1111:"Exempt"})
+        lar_df_chunk['co_applicant_credit_score_type'] = lar_df_chunk['co_applicant_credit_score_type'].map({1:"Equifax Beacon 5.0",
+                                                                                                2:"Experian Fair Isaac",
+                                                                                                3:"FICO Risk Score Classic 04",
+                                                                                                4:"FICO Risk Score Classic 98",
+                                                                                                5:"VantageScore 2.0",
+                                                                                                6:"VantageScore 3.0",
+                                                                                                7:"More than one credit scoring model",
+                                                                                                8:"Other credit scoring model",
+                                                                                                9:"Not applicable",
+                                                                                                10:"No co-applicant",
+                                                                                                1111:"Exempt"})
 
-    lar_df['co_applicant_credit_score_type'] = lar_df['co_applicant_credit_score_type'].map({1:"Equifax Beacon 5.0",
-                                                                                             2:"Experian Fair Isaac",
-                                                                                             3:"FICO Risk Score Classic 04",
-                                                                                             4:"FICO Risk Score Classic 98",
-                                                                                             5:"VantageScore 2.0",
-                                                                                             6:"VantageScore 3.0",
-                                                                                             7:"More than one credit scoring model",
-                                                                                             8:"Other credit scoring model",
-                                                                                             9:"Not applicable",
-                                                                                             10:"No co-applicant",
-                                                                                             1111:"Exempt"})
+        lar_df_chunk['applicant_ethnicity_1'] = lar_df_chunk['applicant_ethnicity_1'].map({1:"Hispanic or Latino",
+                                                                            11:"Mexican",
+                                                                            12:"Puerto Rican",
+                                                                            13:"Cuban",
+                                                                            14:"Other Hispanic or Latino",
+                                                                            2:"Not Hispanic or Latino",
+                                                                            3:"Information not provided by applicant in mail, internet, or telephone application",
+                                                                            4:"Not applicable"})
 
-    lar_df['applicant_ethnicity_1'] = lar_df['applicant_ethnicity_1'].map({1:"Hispanic or Latino",
-                                                                           11:"Mexican",
-                                                                           12:"Puerto Rican",
-                                                                           13:"Cuban",
-                                                                           14:"Other Hispanic or Latino",
-                                                                           2:"Not Hispanic or Latino",
-                                                                           3:"Information not provided by applicant in mail, internet, or telephone application",
-                                                                           4:"Not applicable"})
+        lar_df_chunk['applicant_ethnicity_2'] = lar_df_chunk['applicant_ethnicity_2'].map({1:"Hispanic or Latino",
+                                                                                11:"Mexican",
+                                                                                12:"Puerto Rican",
+                                                                                13:"Cuban",
+                                                                                14:"Other Hispanic or Latino",
+                                                                                2:"Not Hispanic or Latino"})
 
-    lar_df['applicant_ethnicity_2'] = lar_df['applicant_ethnicity_2'].map({1:"Hispanic or Latino",
+        lar_df_chunk['applicant_ethnicity_3'] = lar_df_chunk['applicant_ethnicity_3'].map({1:"Hispanic or Latino",
                                                                             11:"Mexican",
                                                                             12:"Puerto Rican",
                                                                             13:"Cuban",
                                                                             14:"Other Hispanic or Latino",
                                                                             2:"Not Hispanic or Latino"})
 
-    lar_df['applicant_ethnicity_3'] = lar_df['applicant_ethnicity_3'].map({1:"Hispanic or Latino",
-                                                                        11:"Mexican",
-                                                                        12:"Puerto Rican",
-                                                                        13:"Cuban",
-                                                                        14:"Other Hispanic or Latino",
-                                                                        2:"Not Hispanic or Latino"})
+        lar_df_chunk['applicant_ethnicity_4'] = lar_df_chunk['applicant_ethnicity_4'].map({1:"Hispanic or Latino",
+                                                                                11:"Mexican",
+                                                                                12:"Puerto Rican",
+                                                                                13:"Cuban",
+                                                                                14:"Other Hispanic or Latino",
+                                                                                2:"Not Hispanic or Latino"})
 
-    lar_df['applicant_ethnicity_4'] = lar_df['applicant_ethnicity_4'].map({1:"Hispanic or Latino",
-                                                                            11:"Mexican",
-                                                                            12:"Puerto Rican",
-                                                                            13:"Cuban",
-                                                                            14:"Other Hispanic or Latino",
-                                                                            2:"Not Hispanic or Latino"})
+        lar_df_chunk['applicant_ethnicity_5'] = lar_df_chunk['applicant_ethnicity_5'].map({1:"Hispanic or Latino",
+                                                                                11:"Mexican",
+                                                                                12:"Puerto Rican",
+                                                                                13:"Cuban",
+                                                                                14:"Other Hispanic or Latino",
+                                                                                2:"Not Hispanic or Latino"})
 
-    lar_df['applicant_ethnicity_5'] = lar_df['applicant_ethnicity_5'].map({1:"Hispanic or Latino",
-                                                                            11:"Mexican",
-                                                                            12:"Puerto Rican",
-                                                                            13:"Cuban",
-                                                                            14:"Other Hispanic or Latino",
-                                                                            2:"Not Hispanic or Latino"})
+        lar_df_chunk['co_applicant_ethnicity_1'] = lar_df_chunk['co_applicant_ethnicity_1'].map({1:"Hispanic or Latino",
+                                                                                    11:"Mexican",
+                                                                                    12:"Puerto Rican",
+                                                                                    13:"Cuban",
+                                                                                    14:"Other Hispanic or Latino",
+                                                                                    2:"Not Hispanic or Latino",
+                                                                                    3:"Information not provided by applicant in mail, internet, or telephone application",
+                                                                                    4:"Not applicable",
+                                                                                    5:"No co-applicant"})
 
-    lar_df['co_applicant_ethnicity_1'] = lar_df['co_applicant_ethnicity_1'].map({1:"Hispanic or Latino",
-                                                                                 11:"Mexican",
-                                                                                 12:"Puerto Rican",
-                                                                                 13:"Cuban",
-                                                                                 14:"Other Hispanic or Latino",
-                                                                                 2:"Not Hispanic or Latino",
-                                                                                 3:"Information not provided by applicant in mail, internet, or telephone application",
-                                                                                 4:"Not applicable",
-                                                                                 5:"No co-applicant"})
+        lar_df_chunk['co_applicant_ethnicity_2'] = lar_df_chunk['co_applicant_ethnicity_2'].map({1:"Hispanic or Latino",
+                                                                                    11:"Mexican",
+                                                                                    12:"Puerto Rican",
+                                                                                    13:"Cuban",
+                                                                                    14:"Other Hispanic or Latino",
+                                                                                    2:"Not Hispanic or Latino"})
 
-    lar_df['co_applicant_ethnicity_2'] = lar_df['co_applicant_ethnicity_2'].map({1:"Hispanic or Latino",
-                                                                                 11:"Mexican",
-                                                                                 12:"Puerto Rican",
-                                                                                 13:"Cuban",
-                                                                                 14:"Other Hispanic or Latino",
-                                                                                 2:"Not Hispanic or Latino"})
+        lar_df_chunk['co_applicant_ethnicity_3'] = lar_df_chunk['co_applicant_ethnicity_3'].map({1:"Hispanic or Latino",
+                                                                                    11:"Mexican",
+                                                                                    12:"Puerto Rican",
+                                                                                    13:"Cuban",
+                                                                                    14:"Other Hispanic or Latino",
+                                                                                    2:"Not Hispanic or Latino"})
 
-    lar_df['co_applicant_ethnicity_3'] = lar_df['co_applicant_ethnicity_3'].map({1:"Hispanic or Latino",
-                                                                                 11:"Mexican",
-                                                                                 12:"Puerto Rican",
-                                                                                 13:"Cuban",
-                                                                                 14:"Other Hispanic or Latino",
-                                                                                 2:"Not Hispanic or Latino"})
+        lar_df_chunk['co_applicant_ethnicity_4'] = lar_df_chunk['co_applicant_ethnicity_4'].map({1:"Hispanic or Latino",
+                                                                                    11:"Mexican",
+                                                                                    12:"Puerto Rican",
+                                                                                    13:"Cuban",
+                                                                                    14:"Other Hispanic or Latino",
+                                                                                    2:"Not Hispanic or Latino"})
 
-    lar_df['co_applicant_ethnicity_4'] = lar_df['co_applicant_ethnicity_4'].map({1:"Hispanic or Latino",
-                                                                                 11:"Mexican",
-                                                                                 12:"Puerto Rican",
-                                                                                 13:"Cuban",
-                                                                                 14:"Other Hispanic or Latino",
-                                                                                 2:"Not Hispanic or Latino"})
+        lar_df_chunk['co_applicant_ethnicity_5'] = lar_df_chunk['co_applicant_ethnicity_5'].map({1:"Hispanic or Latino",
+                                                                                    11:"Mexican",
+                                                                                    12:"Puerto Rican",
+                                                                                    13:"Cuban",
+                                                                                    14:"Other Hispanic or Latino",
+                                                                                    2:"Not Hispanic or Latino"})
 
-    lar_df['co_applicant_ethnicity_5'] = lar_df['co_applicant_ethnicity_5'].map({1:"Hispanic or Latino",
-                                                                                 11:"Mexican",
-                                                                                 12:"Puerto Rican",
-                                                                                 13:"Cuban",
-                                                                                 14:"Other Hispanic or Latino",
-                                                                                 2:"Not Hispanic or Latino"})
+        lar_df_chunk['applicant_ethnicity_observed'] = lar_df_chunk['applicant_ethnicity_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                            2:"Not collected on the basis of visual observation or surname",
+                                                                                            3:"Not applicable"})
 
-    lar_df['applicant_ethnicity_observed'] = lar_df['applicant_ethnicity_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                                         2:"Not collected on the basis of visual observation or surname",
-                                                                                         3:"Not applicable"})
+        lar_df_chunk['co_applicant_ethnicity_observed'] = lar_df_chunk['co_applicant_ethnicity_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                                2:"Not collected on the basis of visual observation or surname",
+                                                                                                3:"Not applicable",
+                                                                                                4:"No co-applicant"})
 
-    lar_df['co_applicant_ethnicity_observed'] = lar_df['co_applicant_ethnicity_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                                               2:"Not collected on the basis of visual observation or surname",
-                                                                                               3:"Not applicable",
-                                                                                               4:"No co-applicant"})
+        lar_df_chunk['applicant_race_1'] = lar_df_chunk['applicant_race_1'].map({1:"American Indian or Alaska Native",
+                                                                    2:"Asian",
+                                                                    21:"Asian Indian",
+                                                                    22:"Chinese",
+                                                                    23:"Filipino",
+                                                                    24:"Japanese",
+                                                                    25:"Korean",
+                                                                    26:"Vietnamese",
+                                                                    27:"Other Asian",
+                                                                    3:"Black or African American",
+                                                                    4:"Native Hawaiian or Other Pacific Islander",
+                                                                    41:"Native Hawaiian",
+                                                                    42:"Guamanian or Chamorro",
+                                                                    43:"Samoan",
+                                                                    44:"Other Pacific Islander",
+                                                                    5:"White",
+                                                                    6:"Information not provided by applicant in mail, internet, or telephone application",
+                                                                    7:"Not applicable"})
+        
+        lar_df_chunk['applicant_race_2'] = lar_df_chunk['applicant_race_2'].map({1:"American Indian or Alaska Native",
+                                                                    2:"Asian",
+                                                                    21:"Asian Indian",
+                                                                    22:"Chinese",
+                                                                    23:"Filipino",
+                                                                    24:"Japanese",
+                                                                    25:"Korean",
+                                                                    26:"Vietnamese",
+                                                                    27:"Other Asian",
+                                                                    3:"Black or African American",
+                                                                    4:"Native Hawaiian or Other Pacific Islander",
+                                                                    41:"Native Hawaiian",
+                                                                    42:"Guamanian or Chamorro",
+                                                                    43:"Samoan",
+                                                                    44:"Other Pacific Islander",
+                                                                    5:"White"})
+        
+        lar_df_chunk['applicant_race_3'] = lar_df_chunk['applicant_race_3'].map({1:"American Indian or Alaska Native",
+                                                                    2:"Asian",
+                                                                    21:"Asian Indian",
+                                                                    22:"Chinese",
+                                                                    23:"Filipino",
+                                                                    24:"Japanese",
+                                                                    25:"Korean",
+                                                                    26:"Vietnamese",
+                                                                    27:"Other Asian",
+                                                                    3:"Black or African American",
+                                                                    4:"Native Hawaiian or Other Pacific Islander",
+                                                                    41:"Native Hawaiian",
+                                                                    42:"Guamanian or Chamorro",
+                                                                    43:"Samoan",
+                                                                    44:"Other Pacific Islander",
+                                                                    5:"White"})
+        
+        lar_df_chunk['applicant_race_4'] = lar_df_chunk['applicant_race_4'].map({1:"American Indian or Alaska Native",
+                                                                    2:"Asian",
+                                                                    21:"Asian Indian",
+                                                                    22:"Chinese",
+                                                                    23:"Filipino",
+                                                                    24:"Japanese",
+                                                                    25:"Korean",
+                                                                    26:"Vietnamese",
+                                                                    27:"Other Asian",
+                                                                    3:"Black or African American",
+                                                                    4:"Native Hawaiian or Other Pacific Islander",
+                                                                    41:"Native Hawaiian",
+                                                                    42:"Guamanian or Chamorro",
+                                                                    43:"Samoan",
+                                                                    44:"Other Pacific Islander",
+                                                                    5:"White"})
+        
+        lar_df_chunk['applicant_race_5'] = lar_df_chunk['applicant_race_5'].map({1:"American Indian or Alaska Native",
+                                                                    2:"Asian",
+                                                                    21:"Asian Indian",
+                                                                    22:"Chinese",
+                                                                    23:"Filipino",
+                                                                    24:"Japanese",
+                                                                    25:"Korean",
+                                                                    26:"Vietnamese",
+                                                                    27:"Other Asian",
+                                                                    3:"Black or African American",
+                                                                    4:"Native Hawaiian or Other Pacific Islander",
+                                                                    41:"Native Hawaiian",
+                                                                    42:"Guamanian or Chamorro",
+                                                                    43:"Samoan",
+                                                                    44:"Other Pacific Islander",
+                                                                    5:"White"})
 
-    lar_df['applicant_race_1'] = lar_df['applicant_race_1'].map({1:"American Indian or Alaska Native",
-                                                                 2:"Asian",
-                                                                 21:"Asian Indian",
-                                                                 22:"Chinese",
-                                                                 23:"Filipino",
-                                                                 24:"Japanese",
-                                                                 25:"Korean",
-                                                                 26:"Vietnamese",
-                                                                 27:"Other Asian",
-                                                                 3:"Black or African American",
-                                                                 4:"Native Hawaiian or Other Pacific Islander",
-                                                                 41:"Native Hawaiian",
-                                                                 42:"Guamanian or Chamorro",
-                                                                 43:"Samoan",
-                                                                 44:"Other Pacific Islander",
-                                                                 5:"White",
-                                                                 6:"Information not provided by applicant in mail, internet, or telephone application",
-                                                                 7:"Not applicable"})
-    
-    lar_df['applicant_race_2'] = lar_df['applicant_race_2'].map({1:"American Indian or Alaska Native",
-                                                                 2:"Asian",
-                                                                 21:"Asian Indian",
-                                                                 22:"Chinese",
-                                                                 23:"Filipino",
-                                                                 24:"Japanese",
-                                                                 25:"Korean",
-                                                                 26:"Vietnamese",
-                                                                 27:"Other Asian",
-                                                                 3:"Black or African American",
-                                                                 4:"Native Hawaiian or Other Pacific Islander",
-                                                                 41:"Native Hawaiian",
-                                                                 42:"Guamanian or Chamorro",
-                                                                 43:"Samoan",
-                                                                 44:"Other Pacific Islander",
-                                                                 5:"White"})
-    
-    lar_df['applicant_race_3'] = lar_df['applicant_race_3'].map({1:"American Indian or Alaska Native",
-                                                                 2:"Asian",
-                                                                 21:"Asian Indian",
-                                                                 22:"Chinese",
-                                                                 23:"Filipino",
-                                                                 24:"Japanese",
-                                                                 25:"Korean",
-                                                                 26:"Vietnamese",
-                                                                 27:"Other Asian",
-                                                                 3:"Black or African American",
-                                                                 4:"Native Hawaiian or Other Pacific Islander",
-                                                                 41:"Native Hawaiian",
-                                                                 42:"Guamanian or Chamorro",
-                                                                 43:"Samoan",
-                                                                 44:"Other Pacific Islander",
-                                                                 5:"White"})
-    
-    lar_df['applicant_race_4'] = lar_df['applicant_race_4'].map({1:"American Indian or Alaska Native",
-                                                                 2:"Asian",
-                                                                 21:"Asian Indian",
-                                                                 22:"Chinese",
-                                                                 23:"Filipino",
-                                                                 24:"Japanese",
-                                                                 25:"Korean",
-                                                                 26:"Vietnamese",
-                                                                 27:"Other Asian",
-                                                                 3:"Black or African American",
-                                                                 4:"Native Hawaiian or Other Pacific Islander",
-                                                                 41:"Native Hawaiian",
-                                                                 42:"Guamanian or Chamorro",
-                                                                 43:"Samoan",
-                                                                 44:"Other Pacific Islander",
-                                                                 5:"White"})
-    
-    lar_df['applicant_race_5'] = lar_df['applicant_race_5'].map({1:"American Indian or Alaska Native",
-                                                                 2:"Asian",
-                                                                 21:"Asian Indian",
-                                                                 22:"Chinese",
-                                                                 23:"Filipino",
-                                                                 24:"Japanese",
-                                                                 25:"Korean",
-                                                                 26:"Vietnamese",
-                                                                 27:"Other Asian",
-                                                                 3:"Black or African American",
-                                                                 4:"Native Hawaiian or Other Pacific Islander",
-                                                                 41:"Native Hawaiian",
-                                                                 42:"Guamanian or Chamorro",
-                                                                 43:"Samoan",
-                                                                 44:"Other Pacific Islander",
-                                                                 5:"White"})
+        lar_df_chunk['co_applicant_race_1'] = lar_df_chunk['co_applicant_race_1'].map({1:"American Indian or Alaska Native",
+                                                                        2:"Asian",
+                                                                        21:"Asian Indian",
+                                                                        22:"Chinese",
+                                                                        23:"Filipino",
+                                                                        24:"Japanese",
+                                                                        25:"Korean",
+                                                                        26:"Vietnamese",
+                                                                        27:"Other Asian",
+                                                                        3:"Black or African American",
+                                                                        4:"Native Hawaiian or Other Pacific Islander",
+                                                                        41:"Native Hawaiian",
+                                                                        42:"Guamanian or Chamorro",
+                                                                        43:"Samoan",
+                                                                        44:"Other Pacific Islander",
+                                                                        5:"White",
+                                                                        6:"Information not provided by applicant in mail, internet, or telephone application",
+                                                                        7:"Not applicable",
+                                                                        8:"No co-applicant"})
 
-    lar_df['co_applicant_race_1'] = lar_df['co_applicant_race_1'].map({1:"American Indian or Alaska Native",
-                                                                       2:"Asian",
-                                                                       21:"Asian Indian",
-                                                                       22:"Chinese",
-                                                                       23:"Filipino",
-                                                                       24:"Japanese",
-                                                                       25:"Korean",
-                                                                       26:"Vietnamese",
-                                                                       27:"Other Asian",
-                                                                       3:"Black or African American",
-                                                                       4:"Native Hawaiian or Other Pacific Islander",
-                                                                       41:"Native Hawaiian",
-                                                                       42:"Guamanian or Chamorro",
-                                                                       43:"Samoan",
-                                                                       44:"Other Pacific Islander",
-                                                                       5:"White",
-                                                                       6:"Information not provided by applicant in mail, internet, or telephone application",
-                                                                       7:"Not applicable",
-                                                                       8:"No co-applicant"})
+        lar_df_chunk['co_applicant_race_2'] = lar_df_chunk['co_applicant_race_2'].map({1:"American Indian or Alaska Native",
+                                                                        2:"Asian",
+                                                                        21:"Asian Indian",
+                                                                        22:"Chinese",
+                                                                        23:"Filipino",
+                                                                        24:"Japanese",
+                                                                        25:"Korean",
+                                                                        26:"Vietnamese",
+                                                                        27:"Other Asian",
+                                                                        3:"Black or African American",
+                                                                        4:"Native Hawaiian or Other Pacific Islander",
+                                                                        41:"Native Hawaiian",
+                                                                        42:"Guamanian or Chamorro",
+                                                                        43:"Samoan",
+                                                                        44:"Other Pacific Islander",
+                                                                        5:"White"})
 
-    lar_df['co_applicant_race_2'] = lar_df['co_applicant_race_2'].map({1:"American Indian or Alaska Native",
-                                                                       2:"Asian",
-                                                                       21:"Asian Indian",
-                                                                       22:"Chinese",
-                                                                       23:"Filipino",
-                                                                       24:"Japanese",
-                                                                       25:"Korean",
-                                                                       26:"Vietnamese",
-                                                                       27:"Other Asian",
-                                                                       3:"Black or African American",
-                                                                       4:"Native Hawaiian or Other Pacific Islander",
-                                                                       41:"Native Hawaiian",
-                                                                       42:"Guamanian or Chamorro",
-                                                                       43:"Samoan",
-                                                                       44:"Other Pacific Islander",
-                                                                       5:"White"})
+        lar_df_chunk['co_applicant_race_3'] = lar_df_chunk['co_applicant_race_3'].map({1:"American Indian or Alaska Native",
+                                                                        2:"Asian",
+                                                                        21:"Asian Indian",
+                                                                        22:"Chinese",
+                                                                        23:"Filipino",
+                                                                        24:"Japanese",
+                                                                        25:"Korean",
+                                                                        26:"Vietnamese",
+                                                                        27:"Other Asian",
+                                                                        3:"Black or African American",
+                                                                        4:"Native Hawaiian or Other Pacific Islander",
+                                                                        41:"Native Hawaiian",
+                                                                        42:"Guamanian or Chamorro",
+                                                                        43:"Samoan",
+                                                                        44:"Other Pacific Islander",
+                                                                        5:"White"})
 
-    lar_df['co_applicant_race_3'] = lar_df['co_applicant_race_3'].map({1:"American Indian or Alaska Native",
-                                                                       2:"Asian",
-                                                                       21:"Asian Indian",
-                                                                       22:"Chinese",
-                                                                       23:"Filipino",
-                                                                       24:"Japanese",
-                                                                       25:"Korean",
-                                                                       26:"Vietnamese",
-                                                                       27:"Other Asian",
-                                                                       3:"Black or African American",
-                                                                       4:"Native Hawaiian or Other Pacific Islander",
-                                                                       41:"Native Hawaiian",
-                                                                       42:"Guamanian or Chamorro",
-                                                                       43:"Samoan",
-                                                                       44:"Other Pacific Islander",
-                                                                       5:"White"})
+        lar_df_chunk['co_applicant_race_4'] = lar_df_chunk['co_applicant_race_4'].map({1:"American Indian or Alaska Native",
+                                                                        2:"Asian",
+                                                                        21:"Asian Indian",
+                                                                        22:"Chinese",
+                                                                        23:"Filipino",
+                                                                        24:"Japanese",
+                                                                        25:"Korean",
+                                                                        26:"Vietnamese",
+                                                                        27:"Other Asian",
+                                                                        3:"Black or African American",
+                                                                        4:"Native Hawaiian or Other Pacific Islander",
+                                                                        41:"Native Hawaiian",
+                                                                        42:"Guamanian or Chamorro",
+                                                                        43:"Samoan",
+                                                                        44:"Other Pacific Islander",
+                                                                        5:"White"})
 
-    lar_df['co_applicant_race_4'] = lar_df['co_applicant_race_4'].map({1:"American Indian or Alaska Native",
-                                                                       2:"Asian",
-                                                                       21:"Asian Indian",
-                                                                       22:"Chinese",
-                                                                       23:"Filipino",
-                                                                       24:"Japanese",
-                                                                       25:"Korean",
-                                                                       26:"Vietnamese",
-                                                                       27:"Other Asian",
-                                                                       3:"Black or African American",
-                                                                       4:"Native Hawaiian or Other Pacific Islander",
-                                                                       41:"Native Hawaiian",
-                                                                       42:"Guamanian or Chamorro",
-                                                                       43:"Samoan",
-                                                                       44:"Other Pacific Islander",
-                                                                       5:"White"})
+        lar_df_chunk['co_applicant_race_5'] = lar_df_chunk['co_applicant_race_5'].map({1:"American Indian or Alaska Native",
+                                                                        2:"Asian",
+                                                                        21:"Asian Indian",
+                                                                        22:"Chinese",
+                                                                        23:"Filipino",
+                                                                        24:"Japanese",
+                                                                        25:"Korean",
+                                                                        26:"Vietnamese",
+                                                                        27:"Other Asian",
+                                                                        3:"Black or African American",
+                                                                        4:"Native Hawaiian or Other Pacific Islander",
+                                                                        41:"Native Hawaiian",
+                                                                        42:"Guamanian or Chamorro",
+                                                                        43:"Samoan",
+                                                                        44:"Other Pacific Islander",
+                                                                        5:"White"})
 
-    lar_df['co_applicant_race_5'] = lar_df['co_applicant_race_5'].map({1:"American Indian or Alaska Native",
-                                                                       2:"Asian",
-                                                                       21:"Asian Indian",
-                                                                       22:"Chinese",
-                                                                       23:"Filipino",
-                                                                       24:"Japanese",
-                                                                       25:"Korean",
-                                                                       26:"Vietnamese",
-                                                                       27:"Other Asian",
-                                                                       3:"Black or African American",
-                                                                       4:"Native Hawaiian or Other Pacific Islander",
-                                                                       41:"Native Hawaiian",
-                                                                       42:"Guamanian or Chamorro",
-                                                                       43:"Samoan",
-                                                                       44:"Other Pacific Islander",
-                                                                       5:"White"})
+        lar_df_chunk['applicant_race_observed'] = lar_df_chunk['applicant_race_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                2:"Not collected on the basis of visual observation or surname",
+                                                                                3:"Not applicable"})
 
-    lar_df['applicant_race_observed'] = lar_df['applicant_race_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                               2:"Not collected on the basis of visual observation or surname",
-                                                                               3:"Not applicable"})
+        lar_df_chunk['co_applicant_race_observed'] = lar_df_chunk['co_applicant_race_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                        2:"Not collected on the basis of visual observation or surname",
+                                                                                        3:"Not applicable",
+                                                                                        4:"No co-applicant"})
 
-    lar_df['co_applicant_race_observed'] = lar_df['co_applicant_race_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                                     2:"Not collected on the basis of visual observation or surname",
-                                                                                     3:"Not applicable",
-                                                                                     4:"No co-applicant"})
+        lar_df_chunk['applicant_sex'] = lar_df_chunk['applicant_sex'].map({1:"Male",
+                                                            2:"Female",
+                                                            3:"Information not provided by applicant in mail, internet, or telephone application",
+                                                            4:"Not applicable",
+                                                            6:"Applicant selected both male and female"})
 
-    lar_df['applicant_sex'] = lar_df['applicant_sex'].map({1:"Male",
-                                                           2:"Female",
-                                                           3:"Information not provided by applicant in mail, internet, or telephone application",
-                                                           4:"Not applicable",
-                                                           6:"Applicant selected both male and female"})
+        lar_df_chunk['co_applicant_sex'] = lar_df_chunk['co_applicant_sex'].map({1:"Male",
+                                                                    2:"Female",
+                                                                    3:"Information not provided by applicant in mail, internet, or telephone application",
+                                                                    4:"Not applicable",
+                                                                    5:"No co-applicant",
+                                                                    6:"Co-applicant selected both male and female"})
 
-    lar_df['co_applicant_sex'] = lar_df['co_applicant_sex'].map({1:"Male",
-                                                                 2:"Female",
-                                                                 3:"Information not provided by applicant in mail, internet, or telephone application",
-                                                                 4:"Not applicable",
-                                                                 5:"No co-applicant",
-                                                                 6:"Co-applicant selected both male and female"})
+        lar_df_chunk['applicant_sex_observed'] = lar_df_chunk['applicant_sex_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                2:"Not collected on the basis of visual observation or surname",
+                                                                                3:"Not applicable"})
 
-    lar_df['applicant_sex_observed'] = lar_df['applicant_sex_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                             2:"Not collected on the basis of visual observation or surname",
-                                                                             3:"Not applicable"})
+        lar_df_chunk['co_applicant_sex_observed'] = lar_df_chunk['co_applicant_sex_observed'].map({1:"Collected on the basis of visual observation or surname",
+                                                                                    2:"Not collected on the basis of visual observation or surname",
+                                                                                    3:"Not applicable",
+                                                                                    4:"No co-applicant"})
 
-    lar_df['co_applicant_sex_observed'] = lar_df['co_applicant_sex_observed'].map({1:"Collected on the basis of visual observation or surname",
-                                                                                   2:"Not collected on the basis of visual observation or surname",
-                                                                                   3:"Not applicable",
-                                                                                   4:"No co-applicant"})
+        lar_df_chunk['submission_of_application'] = lar_df_chunk['submission_of_application'].map({1:"Submitted directly to your institution",
+                                                                                    2:"Not submitted directly to your institution",
+                                                                                    3:"Not applicable",
+                                                                                    1111:"Exempt"})
 
-    lar_df['submission_of_application'] = lar_df['submission_of_application'].map({1:"Submitted directly to your institution",
-                                                                                   2:"Not submitted directly to your institution",
-                                                                                   3:"Not applicable",
-                                                                                   1111:"Exempt"})
+        lar_df_chunk['initially_payable_to_institution'] = lar_df_chunk['initially_payable_to_institution'].map({1:"Initially payable to your institution",
+                                                                                                    2:"Not initially payable to your institution",
+                                                                                                    3:"Not applicable",
+                                                                                                    1111:"Exempt"})
+        lar_df_chunk['aus_1'] = lar_df_chunk['aus_1'].map({1:"Desktop Underwriter (DU)",
+                                            2:"Loan Prospector (LP) or Loan Product Advisor",
+                                            3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
+                                            4:"Guaranteed Underwriting System (GUS)",
+                                            5:"Other",
+                                            6:"Not applicable",
+                                            7:"Internal Proprietary System",
+                                            1111:"Exempt"})
 
-    lar_df['initially_payable_to_institution'] = lar_df['initially_payable_to_institution'].map({1:"Initially payable to your institution",
-                                                                                                 2:"Not initially payable to your institution",
-                                                                                                 3:"Not applicable",
-                                                                                                 1111:"Exempt"})
-    lar_df['aus_1'] = lar_df['aus_1'].map({1:"Desktop Underwriter (DU)",
-                                           2:"Loan Prospector (LP) or Loan Product Advisor",
-                                           3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
-                                           4:"Guaranteed Underwriting System (GUS)",
-                                           5:"Other",
-                                           6:"Not applicable",
-                                           7:"Internal Proprietary System",
-                                           1111:"Exempt"})
+        lar_df_chunk['aus_2'] = lar_df_chunk['aus_2'].map({1:"Desktop Underwriter (DU)",
+                                        2:"Loan Prospector (LP) or Loan Product Advisor",
+                                        3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
+                                        4:"Guaranteed Underwriting System (GUS)",
+                                        5:"Other",
+                                        7:"Internal Proprietary System"})
 
-    lar_df['aus_2'] = lar_df['aus_2'].map({1:"Desktop Underwriter (DU)",
-                                       2:"Loan Prospector (LP) or Loan Product Advisor",
-                                       3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
-                                       4:"Guaranteed Underwriting System (GUS)",
-                                       5:"Other",
-                                       7:"Internal Proprietary System"})
+        lar_df_chunk['aus_3'] = lar_df_chunk['aus_3'].map({1:"Desktop Underwriter (DU)",
+                                        2:"Loan Prospector (LP) or Loan Product Advisor",
+                                        3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
+                                        4:"Guaranteed Underwriting System (GUS)",
+                                        7:"Internal Proprietary System"})
 
-    lar_df['aus_3'] = lar_df['aus_3'].map({1:"Desktop Underwriter (DU)",
-                                       2:"Loan Prospector (LP) or Loan Product Advisor",
-                                       3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
-                                       4:"Guaranteed Underwriting System (GUS)",
-                                       7:"Internal Proprietary System"})
+        lar_df_chunk['aus-4'] = lar_df_chunk['aus_4'].map({1:"Desktop Underwriter (DU)",
+                                        2:"Loan Prospector (LP) or Loan Product Advisor",
+                                        3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
+                                        4:"Guaranteed Underwriting System (GUS)",
+                                        7:"Internal Proprietary System"})
 
-    lar_df['aus-4'] = lar_df['aus_4'].map({1:"Desktop Underwriter (DU)",
-                                       2:"Loan Prospector (LP) or Loan Product Advisor",
-                                       3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
-                                       4:"Guaranteed Underwriting System (GUS)",
-                                       7:"Internal Proprietary System"})
+        lar_df_chunk['aus_5'] = lar_df_chunk['aus_5'].map({1:"Desktop Underwriter (DU)",
+                                        2:"Loan Prospector (LP) or Loan Product Advisor",
+                                        3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
+                                        4:"Guaranteed Underwriting System (GUS)",
+                                        7:"Internal Proprietary System"})
 
-    lar_df['aus_5'] = lar_df['aus_5'].map({1:"Desktop Underwriter (DU)",
-                                       2:"Loan Prospector (LP) or Loan Product Advisor",
-                                       3:"Technology Open to Approved Lenders (TOTAL) Scorecard",
-                                       4:"Guaranteed Underwriting System (GUS)",
-                                       7:"Internal Proprietary System"})
+        lar_df_chunk['denial_reason_1'] = lar_df_chunk['denial_reason_1'].map({1:"Debt-to-income ratio",
+                                                                2:"Employment history",
+                                                                3:"Credit history",
+                                                                4:"Collateral",
+                                                                5:"Insufficient cash (downpayment, closing costs)",
+                                                                6:"Unverifiable information",
+                                                                7:"Credit application incomplete",
+                                                                8:"Mortgage insurance denied",
+                                                                9:"Other",
+                                                                10:"Not applicable"})
 
-    lar_df['denial_reason_1'] = lar_df['denial_reason_1'].map({1:"Debt-to-income ratio",
-                                                               2:"Employment history",
-                                                               3:"Credit history",
-                                                               4:"Collateral",
-                                                               5:"Insufficient cash (downpayment, closing costs)",
-                                                               6:"Unverifiable information",
-                                                               7:"Credit application incomplete",
-                                                               8:"Mortgage insurance denied",
-                                                               9:"Other",
-                                                               10:"Not applicable"})
+        lar_df_chunk['denial_reason_2'] = lar_df_chunk['denial_reason_2'].map({1:"Debt-to-income ratio",
+                                                                2:"Employment history",
+                                                                3:"Credit history",
+                                                                4:"Collateral",
+                                                                5:"Insufficient cash (downpayment, closing costs)",
+                                                                6:"Unverifiable information",
+                                                                7:"Credit application incomplete",
+                                                                8:"Mortgage insurance denied",
+                                                                9:"Other"})
 
-    lar_df['denial_reason_2'] = lar_df['denial_reason_2'].map({1:"Debt-to-income ratio",
-                                                               2:"Employment history",
-                                                               3:"Credit history",
-                                                               4:"Collateral",
-                                                               5:"Insufficient cash (downpayment, closing costs)",
-                                                               6:"Unverifiable information",
-                                                               7:"Credit application incomplete",
-                                                               8:"Mortgage insurance denied",
-                                                               9:"Other"})
+        lar_df_chunk['denial_reason_3'] = lar_df_chunk['denial_reason_3'].map({1:"Debt-to-income ratio",
+                                                                2:"Employment history",
+                                                                3:"Credit history",
+                                                                4:"Collateral",
+                                                                5:"Insufficient cash (downpayment, closing costs)",
+                                                                6:"Unverifiable information",
+                                                                7:"Credit application incomplete",
+                                                                8:"Mortgage insurance denied",
+                                                                9:"Other"})
 
-    lar_df['denial_reason_3'] = lar_df['denial_reason_3'].map({1:"Debt-to-income ratio",
-                                                               2:"Employment history",
-                                                               3:"Credit history",
-                                                               4:"Collateral",
-                                                               5:"Insufficient cash (downpayment, closing costs)",
-                                                               6:"Unverifiable information",
-                                                               7:"Credit application incomplete",
-                                                               8:"Mortgage insurance denied",
-                                                               9:"Other"})
+        lar_df_chunk['denial_reason_4'] = lar_df_chunk['denial_reason_4'].map({1:"Debt-to-income ratio",
+                                                                2:"Employment history",
+                                                                3:"Credit history",
+                                                                4:"Collateral",
+                                                                5:"Insufficient cash (downpayment, closing costs)",
+                                                                6:"Unverifiable information",
+                                                                7:"Credit application incomplete",
+                                                                8:"Mortgage insurance denied",
+                                                                9:"Other"})
+        
+        # subset for texas and counties of interest
+        lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[-3:]
+        lar_df_chunk = lar_df_chunk[lar_df_chunk['state_code'] == 'TX']
+        lar_df_chunk = lar_df_chunk[(lar_df_chunk['county_code'] == '48439') | (lar_df_chunk['county_code'] == '48085') | (lar_df_chunk['county_code'] == '48113')]
+        
+        # concatenate chunks 
+        lar_df_full = pd.concat([lar_df_full, lar_df_chunk])
+        counter += 1
+        print(str(counter) + "/322")
 
-    lar_df['denial_reason_4'] = lar_df['denial_reason_4'].map({1:"Debt-to-income ratio",
-                                                               2:"Employment history",
-                                                               3:"Credit history",
-                                                               4:"Collateral",
-                                                               5:"Insufficient cash (downpayment, closing costs)",
-                                                               6:"Unverifiable information",
-                                                               7:"Credit application incomplete",
-                                                               8:"Mortgage insurance denied",
-                                                               9:"Other"})
-    
     # map in full state names
     ssa_url = 'https://www.ssa.gov/international/coc-docs/states.html'
     state_abbrev_map = state_abrevs_getter(ssa_url)
-    lar_df['state_code'] = lar_df['state_code'].map(state_abbrev_map)
+    lar_df_full['state_code'] = lar_df_full['state_code'].map(state_abbrev_map)
 
     # map in county names 
-    lar_df['county_code'] = lar_df['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df['county_code'].apply(str).str.replace('.0','').str[-3:]
+    #lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[-3:]
     url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
     fips_dict = fcc_fips_mappings_getter(url)
-    lar_df['county_code'] = lar_df['county_code'].map(fips_dict['fcc_counties'])
+    lar_df_full['county_code'] = lar_df_full['county_code'].map(fips_dict['fcc_counties'])
 
     # recast data types
-    lar_df = lar_df.astype({"derived_msa_md":str, "census_tract":str})
+    lar_df_full = lar_df_full.astype({"derived_msa_md":str, "census_tract":str})
 
     # reformat the census tract column and subset for records in TEXAS and counties of interest and  stipping whitespace from column names
-    lar_df['census_tract'] = lar_df['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
-    lar_df = lar_df[lar_df['state_code'] == 'TEXAS']
-    lar_df = lar_df[(lar_df['county_code'] == 'Tarrant County') | (lar_df['county_code'] == 'Collin County') | (lar_df['county_code'] == 'Dallas County')]
-    lar_df = lar_df.rename(columns = lambda x: x.strip())
-    
+    lar_df_full['census_tract'] = lar_df_full['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
+    #lar_df_full = lar_df_full[lar_df_full['state_code'] == 'TEXAS']
+    #lar_df_full = lar_df_full[(lar_df_full['county_code'] == 'Tarrant County') | (lar_df_full['county_code'] == 'Collin County') | (lar_df_full['county_code'] == 'Dallas County')]
+    lar_df_full = lar_df_full.rename(columns = lambda x: x.strip())
+        
     # read in transmittal sheet records as df
     ts_df = pd.read_csv(os.path.join(data_folder, "2022_public_ts_csv.csv"))
     
@@ -940,7 +952,7 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     # arid_2017 = pd.read_csv('arid2017_to_lei_xref_csv.csv') # not using for the moment because not joining in previous 
                                                               # years so do not need to use                                                         
         
-    hmda_dict = {"lar_df":lar_df,"ts_df":ts_df, "panel_df":panel_df, "msamd_df":msamd_df}
+    hmda_dict = {"lar_df":lar_df_full,"ts_df":ts_df, "panel_df":panel_df, "msamd_df":msamd_df}
    
     return hmda_dict
 
