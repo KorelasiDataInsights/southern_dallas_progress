@@ -1166,23 +1166,27 @@ def cra_data_ingester(file:str, data_folder:str = 'data')->dict[str:pd.core.fram
                  "Income Group", "Loan Indicator", "Filler"]
     
     d6_widths = [5,10,1,4,2,3,5,7,4,1,1,1,3,1,96]
+
+    most_recent_year = max([re.findall(r'\d{4}',file)[0] for file in os.listdir('data') if 'cra' in file])
+
     
-    fwf_dimensions_dict = {'cra2021_Aggr_A11.dat':[a_1_1_widths,a_1_1_fields],
-                           'cra2021_Aggr_A11a.dat':[a_1_1a_widths,a_1_1a_fields],
-                           'cra2021_Aggr_A12.dat':[a_1_2_widths,a_1_2_fields],
-                           'cra2021_Aggr_A12a.dat':[a_1_2a_widths,a_1_2a_fields],
-                           'cra2021_Aggr_A21.dat':[a_2_1_widths,a_2_1_fields],
-                           'cra2021_Aggr_A21a.dat':[a_2_1a_widths,a_2_1a_fields],
-                           'cra2021_Aggr_A22.dat':[a_2_2_widths,a_2_2_fields],
-                           'cra2021_Aggr_A22a.dat':[a_2_2a_widths,a_2_2a_fields],
-                           'cra2021_Discl_D11.dat':[d_1_1_widths,d_1_1_fields],
-                           'cra2021_Discl_D12.dat':[d_1_2_widths,d_1_2_fields],
-                           'cra2021_Discl_D21.dat':[d_2_1_widths,d_2_1_fields],
-                           'cra2021_Discl_D22.dat':[d_2_2_widths,d_2_2_fields],
-                           'cra2021_Discl_D3.dat':[d3_widths,d3_fields],
-                           'cra2021_Discl_D4.dat':[d4_widths,d4_fields],
-                           'cra2021_Discl_D5.dat':[d5_widths,d5_fields],
-                           'cra2021_Discl_D6.dat':[d6_widths,d6_fields]}
+    fwf_dimensions_dict = {
+        [file for file in os.listdir('data') if 'a11' in file.lower() and 'a11a' not in file.lower() and most_recent_year in file][0]:[a_1_1_widths,a_1_1_fields],
+        [file for file in os.listdir('data') if 'a11a' in file.lower() and most_recent_year in file][0]:[a_1_1a_widths,a_1_1a_fields],
+        [file for file in os.listdir('data') if 'a12' in file.lower() and 'a12a' not in file.lower() and most_recent_year in file][0]:[a_1_2_widths,a_1_2_fields],
+        [file for file in os.listdir('data') if 'a12a' in file.lower() and most_recent_year in file][0]:[a_1_2a_widths,a_1_2a_fields],
+        [file for file in os.listdir('data') if 'a21' in file.lower() and 'a21a' not in file.lower() and most_recent_year in file][0]:[a_2_1_widths,a_2_1_fields],
+        [file for file in os.listdir('data') if 'a21a' in file.lower() and most_recent_year in file][0]:[a_2_1a_widths,a_2_1a_fields],
+        [file for file in os.listdir('data') if 'a22' in file.lower() and 'a22a' not in file.lower() and most_recent_year in file][0]:[a_2_2_widths,a_2_2_fields],
+        [file for file in os.listdir('data') if 'a22a' in file.lower() and most_recent_year in file][0]:[a_2_2a_widths,a_2_2a_fields],
+        [file for file in os.listdir('data') if 'd11' in file.lower() and most_recent_year in file][0]:[d_1_1_widths,d_1_1_fields],
+        [file for file in os.listdir('data') if 'd12' in file.lower() and most_recent_year in file][0]:[d_1_2_widths,d_1_2_fields],
+        [file for file in os.listdir('data') if 'd21' in file.lower() and most_recent_year in file][0]:[d_2_1_widths,d_2_1_fields],
+        [file for file in os.listdir('data') if 'd22' in file.lower() and most_recent_year in file][0]:[d_2_2_widths,d_2_2_fields],
+        [file for file in os.listdir('data') if 'd3' in file.lower() and most_recent_year in file][0]:[d3_widths,d3_fields],
+        [file for file in os.listdir('data') if 'd4' in file.lower() and most_recent_year in file][0]:[d4_widths,d4_fields],
+        [file for file in os.listdir('data') if 'd5' in file.lower() and most_recent_year in file][0]:[d5_widths,d5_fields],
+        [file for file in os.listdir('data') if 'd6' in file.lower() and most_recent_year in file][0]:[d6_widths,d6_fields]}
     
     df_dict = {}
     for i in os.listdir(data_folder):
@@ -1215,30 +1219,66 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     Returns: 
         A dictionary of cra data dataframes where the .dat cra data file name is the key and the corresponding dataframe is the value.
     """
+    # save all file strings to variables 
+
+    
+    a11 = [file for file in df_dictionary.keys() if 'a11' in file.lower() and 'a11a' not in file.lower()][0]
+    a11a = [file for file in df_dictionary.keys() if 'a11a' in file.lower()][0]
+    a12 = [file for file in df_dictionary.keys() if 'a12' in file.lower() and 'a12a' not in file.lower()][0]
+    a12a = [file for file in df_dictionary.keys() if 'a12a' in file.lower()][0]
+    a21 = [file for file in df_dictionary.keys() if 'a21' in file.lower() and 'a21a' not in file.lower()][0]
+    a21a = [file for file in df_dictionary.keys() if 'a21a' in file.lower()][0]
+    a22 = [file for file in df_dictionary.keys() if 'a22' in file.lower() and 'a22a' not in file.lower()][0]
+    a22a = [file for file in df_dictionary.keys() if 'a22a' in file.lower()][0]
+    d11 = [file for file in df_dictionary.keys() if 'd11' in file.lower()][0]
+    d12 = [file for file in df_dictionary.keys() if 'd12' in file.lower()][0]
+    d21 = [file for file in df_dictionary.keys() if 'd21' in file.lower()][0]
+    d22 = [file for file in df_dictionary.keys() if 'd22' in file.lower()][0]
+    d3 = [file for file in df_dictionary.keys() if 'd3' in file.lower()][0]
+    d4 = [file for file in df_dictionary.keys() if 'd4' in file.lower()][0]
+    d5 = [file for file in df_dictionary.keys() if 'd5' in file.lower()][0]
+    d6 = [file for file in df_dictionary.keys() if 'd6' in file.lower()][0]
+    print(a11)
+    print(a11a)
+    print(a12)
+    print(a12a)
+    print(a21)
+    print(a21a)
+    print(a22)
+    print(a22a)
+    print(d11)
+    print(d12)
+    print(d21)
+    print(d22)
+    print(d3)
+    print(d4)
+    print(d5)
+    print(d6)
+
     # A11
-    df_dictionary['cra2021_Aggr_A11.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A11.dat']['Loan Type'].map({
+    df_dictionary[a11]['Loan Type'] = df_dictionary[a11]['Loan Type'].map({
         4:"Small Business", 
         })
     
-    df_dictionary['cra2021_Aggr_A11.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A11.dat']['Action Taken Type'].map({
+    df_dictionary[a11]['Action Taken Type'] = df_dictionary[a11]['Action Taken Type'].map({
         1:"Originations"
     })
 
-    df_dictionary['cra2021_Aggr_A11.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A11.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a11]['MSA/MD'] = df_dictionary[a11]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A11.dat']['Census Tract'] = df_dictionary['cra2021_Aggr_A11.dat']['Census Tract'].replace(np.nan, "totals")
+    df_dictionary[a11]['Census Tract'] = df_dictionary[a11]['Census Tract'].replace(np.nan, "totals")
     
-    df_dictionary['cra2021_Aggr_A11.dat']['Split County Indicator'] = df_dictionary['cra2021_Aggr_A11.dat']['Split County Indicator'].map({
+    df_dictionary[a11]['Split County Indicator'] = df_dictionary[a11]['Split County Indicator'].map({
         "Y":"YES",
         "N":"NO"
     }).replace(np.nan, "total")
     
-    df_dictionary['cra2021_Aggr_A11.dat']['Population Classification'] = df_dictionary['cra2021_Aggr_A11.dat']['Population Classification'].map({
+    df_dictionary[a11]['Population Classification'] = df_dictionary[a11]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population",
         "L":"counties with > 500,000 in population"
     }).replace(np.nan, "total")
     
-    df_dictionary['cra2021_Aggr_A11.dat']['Income Group Total'] = df_dictionary['cra2021_Aggr_A11.dat']['Income Group Total'].map({
+    df_dictionary[a11]['Income Group Total'] = df_dictionary[a11]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1262,64 +1302,64 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A11.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A11.dat']['Report Level'].map({
+    df_dictionary[a11]['Report Level'] = df_dictionary[a11]['Report Level'].map({
         100:"Income Group Total",
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
     
     #A11a
-    df_dictionary['cra2021_Aggr_A11a.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A11a.dat']['Loan Type'].map({
+    df_dictionary[a11a]['Loan Type'] = df_dictionary[a11a]['Loan Type'].map({
         4:"Small Business", 
     })
     
-    df_dictionary['cra2021_Aggr_A11a.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A11a.dat']['Action Taken Type'].map({
+    df_dictionary[a11a]['Action Taken Type'] = df_dictionary[a11a]['Action Taken Type'].map({
         1:"Originations"
     })
 
-    df_dictionary['cra2021_Aggr_A11a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A11a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a11a]['MSA/MD'] = df_dictionary[a11a]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A11a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A11a.dat']['Respondent ID'].replace(np.nan, "total")
+    df_dictionary[a11a]['Respondent ID'] = df_dictionary[a11a]['Respondent ID'].replace(np.nan, "total")
     
-    df_dictionary['cra2021_Aggr_A11a.dat']['Agency Code'] = df_dictionary['cra2021_Aggr_A11a.dat']['Agency Code'].map({
+    df_dictionary[a11a]['Agency Code'] = df_dictionary[a11a]['Agency Code'].map({
         1:"OCC",
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A11a.dat']['Number of Lenders'] = df_dictionary['cra2021_Aggr_A11a.dat']['Number of Lenders'].replace(np.nan, "not a total")
+    df_dictionary[a11a]['Number of Lenders'] = df_dictionary[a11a]['Number of Lenders'].replace(np.nan, "not a total")
 
-    df_dictionary['cra2021_Aggr_A11a.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A11a.dat']['Report Level'].map({
+    df_dictionary[a11a]['Report Level'] = df_dictionary[a11a]['Report Level'].map({
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
 
     #A12
-    df_dictionary['cra2021_Aggr_A12.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A12.dat']['Loan Type'].map({
+    df_dictionary[a12]['Loan Type'] = df_dictionary[a12]['Loan Type'].map({
         4:"Small Business"
     })
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A12.dat']['Action Taken Type'].map({
+    df_dictionary[a12]['Action Taken Type'] = df_dictionary[a12]['Action Taken Type'].map({
         6:"Purchases"
     })
 
-    df_dictionary['cra2021_Aggr_A12.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A12.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a12]['MSA/MD'] = df_dictionary[a12]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Census Tract'] = df_dictionary['cra2021_Aggr_A12.dat']['Census Tract'].replace(np.nan, "total")
+    df_dictionary[a12]['Census Tract'] = df_dictionary[a12]['Census Tract'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Split County Indicator'] = df_dictionary['cra2021_Aggr_A12.dat']['Split County Indicator'].map({
+    df_dictionary[a12]['Split County Indicator'] = df_dictionary[a12]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Population Classification'] = df_dictionary['cra2021_Aggr_A12.dat']['Population Classification'].map({
+    df_dictionary[a12]['Population Classification'] = df_dictionary[a12]['Population Classification'].map({
        "S":"counties with < or = to 500,000 in population",
        "L":"counties with > 500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Income Group Total'] = df_dictionary['cra2021_Aggr_A12.dat']['Income Group Total'].map({
+    df_dictionary[a12]['Income Group Total'] = df_dictionary[a12]['Income Group Total'].map({
         1:"<10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1343,63 +1383,63 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "totals")
 
-    df_dictionary['cra2021_Aggr_A12.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A12.dat']['Report Level'].map({
+    df_dictionary[a12]['Report Level'] = df_dictionary[a12]['Report Level'].map({
        100:"Income Group Total",
        200:"County Total",
        210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # A12a 
-    df_dictionary['cra2021_Aggr_A12a.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A12a.dat']['Loan Type'].map({
+    df_dictionary[a12a]['Loan Type'] = df_dictionary[a12a]['Loan Type'].map({
         4:"Small Business", 
     })
     
-    df_dictionary['cra2021_Aggr_A12a.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A12a.dat']['Action Taken Type'].map({
+    df_dictionary[a12a]['Action Taken Type'] = df_dictionary[a12a]['Action Taken Type'].map({
         6:"Purchases"
     })
 
-    df_dictionary['cra2021_Aggr_A12a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A12a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a12a]['MSA/MD'] = df_dictionary[a12a]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A12a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A12a.dat']['Respondent ID'].replace(np.nan, "total")
+    df_dictionary[a12a]['Respondent ID'] = df_dictionary[a12a]['Respondent ID'].replace(np.nan, "total")
     
-    df_dictionary['cra2021_Aggr_A12a.dat']['Agency Code'] = df_dictionary['cra2021_Aggr_A12a.dat']['Agency Code'].map({
+    df_dictionary[a12a]['Agency Code'] = df_dictionary[a12a]['Agency Code'].map({
         1:"OCC",
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A12a.dat']['Number of Lenders'] = df_dictionary['cra2021_Aggr_A12a.dat']['Number of Lenders'].replace(np.nan, "total")
+    df_dictionary[a12a]['Number of Lenders'] = df_dictionary[a12a]['Number of Lenders'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A12a.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A12a.dat']['Report Level'].map({
+    df_dictionary[a12a]['Report Level'] = df_dictionary[a12a]['Report Level'].map({
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # A21
-    df_dictionary['cra2021_Aggr_A21.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A21.dat']['Loan Type'].map({
+    df_dictionary[a21]['Loan Type'] = df_dictionary[a21]['Loan Type'].map({
         5:"Small Farm"        
     })
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A21.dat']['Action Taken Type'].map({
+    df_dictionary[a21]['Action Taken Type'] = df_dictionary[a21]['Action Taken Type'].map({
         1:"Originations"        
     })
 
-    df_dictionary['cra2021_Aggr_A21.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A21.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a21]['MSA/MD'] = df_dictionary[a21]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Census Tract'] = df_dictionary['cra2021_Aggr_A21.dat']['Census Tract'].replace(np.nan, "total")
+    df_dictionary[a21]['Census Tract'] = df_dictionary[a21]['Census Tract'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Split County Indicator'] = df_dictionary['cra2021_Aggr_A21.dat']['Split County Indicator'].map({
+    df_dictionary[a21]['Split County Indicator'] = df_dictionary[a21]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"       
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Population Classification'] = df_dictionary['cra2021_Aggr_A21.dat']['Population Classification'].map({
+    df_dictionary[a21]['Population Classification'] = df_dictionary[a21]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population",
         "L":"counties with > 500,000 in population" 
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Income Group Total'] = df_dictionary['cra2021_Aggr_A21.dat']['Income Group Total'].map({
+    df_dictionary[a21]['Income Group Total'] = df_dictionary[a21]['Income Group Total'].map({
         1:"<10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1423,63 +1463,63 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A21.dat']['Report Level'].map({
+    df_dictionary[a21]['Report Level'] = df_dictionary[a21]['Report Level'].map({
         100:"Income Group Total",
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # A21a 
-    df_dictionary['cra2021_Aggr_A21a.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A21a.dat']['Loan Type'].map({
+    df_dictionary[a21a]['Loan Type'] = df_dictionary[a21a]['Loan Type'].map({
         5:"Small Farm" 
     })
 
-    df_dictionary['cra2021_Aggr_A21a.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A21a.dat']['Action Taken Type'].map({
+    df_dictionary[a21a]['Action Taken Type'] = df_dictionary[a21a]['Action Taken Type'].map({
         1:"Originations"        
     })
 
-    df_dictionary['cra2021_Aggr_A21a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A21a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a21a]['MSA/MD'] = df_dictionary[a21a]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
     
-    df_dictionary['cra2021_Aggr_A21a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A21a.dat']['Respondent ID'].replace(np.nan, "total")
+    df_dictionary[a21a]['Respondent ID'] = df_dictionary[a21a]['Respondent ID'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21a.dat']['Agency Code'] = df_dictionary['cra2021_Aggr_A21a.dat']['Agency Code'].map({
+    df_dictionary[a21a]['Agency Code'] = df_dictionary[a21a]['Agency Code'].map({
         1:"OCC",
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21a.dat']['Number of Lenders'] = df_dictionary['cra2021_Aggr_A21a.dat']['Number of Lenders'].replace(np.nan, "total")
+    df_dictionary[a21a]['Number of Lenders'] = df_dictionary[a21a]['Number of Lenders'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A21a.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A21a.dat']['Report Level'].map({
+    df_dictionary[a21a]['Report Level'] = df_dictionary[a21a]['Report Level'].map({
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # A22
-    df_dictionary['cra2021_Aggr_A22.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A22.dat']['Loan Type'].map({
+    df_dictionary[a22]['Loan Type'] = df_dictionary[a22]['Loan Type'].map({
          5:"Small Farm"
      })
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A22.dat']['Action Taken Type'].map({
+    df_dictionary[a22]['Action Taken Type'] = df_dictionary[a22]['Action Taken Type'].map({
         6:"Purchases"
     })
 
-    df_dictionary['cra2021_Aggr_A22.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A22.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a22]['MSA/MD'] = df_dictionary[a22]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Census Tract'] = df_dictionary['cra2021_Aggr_A22.dat']['Census Tract'].replace(np.nan, "total")
+    df_dictionary[a22]['Census Tract'] = df_dictionary[a22]['Census Tract'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Split County Indicator'] = df_dictionary['cra2021_Aggr_A22.dat']['Split County Indicator'].map({
+    df_dictionary[a22]['Split County Indicator'] = df_dictionary[a22]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Population Classification'] = df_dictionary['cra2021_Aggr_A22.dat']['Population Classification'].map({
+    df_dictionary[a22]['Population Classification'] = df_dictionary[a22]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population",
         "L":"counties with > 500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Income Group Total'] = df_dictionary['cra2021_Aggr_A22.dat']['Income Group Total'].map({
+    df_dictionary[a22]['Income Group Total'] = df_dictionary[a22]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1503,76 +1543,76 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)",          
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A22.dat']['Report Level'].map({
+    df_dictionary[a22]['Report Level'] = df_dictionary[a22]['Report Level'].map({
         100:"Income Group Total",
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # A22a
-    df_dictionary['cra2021_Aggr_A22a.dat']['Loan Type'] = df_dictionary['cra2021_Aggr_A22a.dat']['Loan Type'].map({
+    df_dictionary[a22a]['Loan Type'] = df_dictionary[a22a]['Loan Type'].map({
         5:"Small Farm"
     })
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['Action Taken Type'] = df_dictionary['cra2021_Aggr_A22a.dat']['Action Taken Type'].map({
+    df_dictionary[a22a]['Action Taken Type'] = df_dictionary[a22a]['Action Taken Type'].map({
         6:"Purchases"
     })
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['MSA/MD'] = df_dictionary['cra2021_Aggr_A22a.dat']['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
+    df_dictionary[a22a]['MSA/MD'] = df_dictionary[a22a]['MSA/MD'].replace(np.nan, "area outside of an MSA/MD")
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['Respondent ID'] = df_dictionary['cra2021_Aggr_A22a.dat']['Respondent ID'].replace(np.nan, "total")
+    df_dictionary[a22a]['Respondent ID'] = df_dictionary[a22a]['Respondent ID'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['Agency Code'] = df_dictionary['cra2021_Aggr_A22a.dat']['Agency Code'].map({
+    df_dictionary[a22a]['Agency Code'] = df_dictionary[a22a]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['Number of Lenders'] = df_dictionary['cra2021_Aggr_A22a.dat']['Number of Lenders'].replace(np.nan, "total")
+    df_dictionary[a22a]['Number of Lenders'] = df_dictionary[a22a]['Number of Lenders'].replace(np.nan, "total")
 
-    df_dictionary['cra2021_Aggr_A22a.dat']['Report Level'] = df_dictionary['cra2021_Aggr_A22a.dat']['Report Level'].map({
+    df_dictionary[a22a]['Report Level'] = df_dictionary[a22a]['Report Level'].map({
         200:"County Total",
         210:"MSA/MD Total"
     }).replace(np.nan, "not a total")
 
     # D11
-    df_dictionary['cra2021_Discl_D11.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D11.dat']['Agency Code'].map({
+    df_dictionary[d11]['Agency Code'] =  df_dictionary[d11]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D11.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D11.dat']['Loan Type'].map({
+    df_dictionary[d11]['Loan Type'] =  df_dictionary[d11]['Loan Type'].map({
         4:"Small Business"
     })
 
-    df_dictionary['cra2021_Discl_D11.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D11.dat']['Action Taken Type'].map({
+    df_dictionary[d11]['Action Taken Type'] =  df_dictionary[d11]['Action Taken Type'].map({
         1:"Originations"
     })
 
-    df_dictionary['cra2021_Discl_D11.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D11.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d11]['MSA/MD'] =  df_dictionary[d11]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D11.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d11]['Assessment Area Number'] =  df_dictionary[d11]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D11.dat']['Partial County Indicator'].map({
+    df_dictionary[d11]['Partial County Indicator'] =  df_dictionary[d11]['Partial County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D11.dat']['Split County Indicator'].map({
+    df_dictionary[d11]['Split County Indicator'] =  df_dictionary[d11]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D11.dat']['Population Classification'].map({
+    df_dictionary[d11]['Population Classification'] =  df_dictionary[d11]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population", 
         "L":"counties with >500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Income Group Total'] =  df_dictionary['cra2021_Discl_D11.dat']['Income Group Total'].map({
+    df_dictionary[d11]['Income Group Total'] =  df_dictionary[d11]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1596,7 +1636,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D11.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D11.dat']['Report Level'].map({
+    df_dictionary[d11]['Report Level'] =  df_dictionary[d11]['Report Level'].map({
         4:"Total Inside & Outside Assessment Area (AA) (across all states)",
         6:"Total Inside AA (across all states)",
         8:"Total Outside AA (across all states)",
@@ -1609,42 +1649,42 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     }).replace(np.nan, "not a total")
 
     # D12
-    df_dictionary['cra2021_Discl_D12.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D12.dat']['Agency Code'].map({
+    df_dictionary[d12]['Agency Code'] =  df_dictionary[d12]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D12.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D12.dat']['Loan Type'].map({
+    df_dictionary[d12]['Loan Type'] =  df_dictionary[d12]['Loan Type'].map({
         4:"Small Business"
     })
 
-    df_dictionary['cra2021_Discl_D12.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D12.dat']['Action Taken Type'].map({
+    df_dictionary[d12]['Action Taken Type'] =  df_dictionary[d12]['Action Taken Type'].map({
         6:"Purchases"
     })
 
-    df_dictionary['cra2021_Discl_D12.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D12.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d12]['MSA/MD'] =  df_dictionary[d12]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D12.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d12]['Assessment Area Number'] =  df_dictionary[d12]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D12.dat']['Partial County Indicator'].map({
+    df_dictionary[d12]['Partial County Indicator'] =  df_dictionary[d12]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D12.dat']['Split County Indicator'].map({
+    df_dictionary[d12]['Split County Indicator'] =  df_dictionary[d12]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D12.dat']['Population Classification'].map({
+    df_dictionary[d12]['Population Classification'] =  df_dictionary[d12]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population", 
         "L":"counties with >500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Income Group Total'] =  df_dictionary['cra2021_Discl_D12.dat']['Income Group Total'].map({
+    df_dictionary[d12]['Income Group Total'] =  df_dictionary[d12]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1668,7 +1708,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D12.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D12.dat']['Report Level'].map({
+    df_dictionary[d12]['Report Level'] =  df_dictionary[d12]['Report Level'].map({
         4:"Total Inside & Outside Assessment Area (AA) (across all states)",
         6:"Total Inside AA (across all states)",
         8:"Total Outside AA (across all states)",
@@ -1681,42 +1721,42 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     }).replace(np.nan, "not a total")
 
     # D21
-    df_dictionary['cra2021_Discl_D21.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D21.dat']['Agency Code'].map({
+    df_dictionary[d21]['Agency Code'] =  df_dictionary[d21]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D21.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D21.dat']['Loan Type'].map({
+    df_dictionary[d21]['Loan Type'] =  df_dictionary[d21]['Loan Type'].map({
        5:"Small Farm"
     })
 
-    df_dictionary['cra2021_Discl_D21.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D21.dat']['Action Taken Type'].map({
+    df_dictionary[d21]['Action Taken Type'] =  df_dictionary[d21]['Action Taken Type'].map({
        1:"Originations"
     })
 
-    df_dictionary['cra2021_Discl_D21.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D21.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d21]['MSA/MD'] =  df_dictionary[d21]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D21.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d21]['Assessment Area Number'] =  df_dictionary[d21]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D21.dat']['Partial County Indicator'].map({
+    df_dictionary[d21]['Partial County Indicator'] =  df_dictionary[d21]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D21.dat']['Split County Indicator'].map({
+    df_dictionary[d21]['Split County Indicator'] =  df_dictionary[d21]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D21.dat']['Population Classification'].map({
+    df_dictionary[d21]['Population Classification'] =  df_dictionary[d21]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population", 
         "L":"counties with >500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Income Group Total'] =  df_dictionary['cra2021_Discl_D21.dat']['Income Group Total'].map({
+    df_dictionary[d21]['Income Group Total'] =  df_dictionary[d21]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1740,7 +1780,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D21.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D21.dat']['Report Level'].map({
+    df_dictionary[d21]['Report Level'] =  df_dictionary[d21]['Report Level'].map({
         4:"Total Inside & Outside Assessment Area (AA) (across all states)",
         6:"Total Inside AA (across all states)",
         8:"Total Outside AA (across all states)",
@@ -1753,42 +1793,42 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     }).replace(np.nan, "not a total")
 
     # D22
-    df_dictionary['cra2021_Discl_D22.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D22.dat']['Agency Code'].map({
+    df_dictionary[d22]['Agency Code'] =  df_dictionary[d22]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D22.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D22.dat']['Loan Type'].map({
+    df_dictionary[d22]['Loan Type'] =  df_dictionary[d22]['Loan Type'].map({
        5:"Small Farm"
     })
 
-    df_dictionary['cra2021_Discl_D22.dat']['Action Taken Type'] =  df_dictionary['cra2021_Discl_D22.dat']['Action Taken Type'].map({
+    df_dictionary[d22]['Action Taken Type'] =  df_dictionary[d22]['Action Taken Type'].map({
        6:"Purchases"
     })
 
-    df_dictionary['cra2021_Discl_D22.dat']['MSA/MD'] =  df_dictionary['cra2021_Discl_D22.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d22]['MSA/MD'] =  df_dictionary[d22]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D22.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d22]['Assessment Area Number'] =  df_dictionary[d22]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D22.dat']['Partial County Indicator'].map({
+    df_dictionary[d22]['Partial County Indicator'] =  df_dictionary[d22]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D22.dat']['Split County Indicator'].map({
+    df_dictionary[d22]['Split County Indicator'] =  df_dictionary[d22]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D22.dat']['Population Classification'].map({
+    df_dictionary[d22]['Population Classification'] =  df_dictionary[d22]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population", 
         "L":"counties with >500,000 in population"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Income Group Total'] =  df_dictionary['cra2021_Discl_D22.dat']['Income Group Total'].map({
+    df_dictionary[d22]['Income Group Total'] =  df_dictionary[d22]['Income Group Total'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1812,7 +1852,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D22.dat']['Report Level'].map({
+    df_dictionary[d22]['Report Level'] =  df_dictionary[d22]['Report Level'].map({
         4:"Total Inside & Outside Assessment Area (AA) (across all states)",
         6:"Total Inside AA (across all states)",
         8:"Total Outside AA (across all states)",
@@ -1825,33 +1865,33 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     }).replace(np.nan, "not a total")
 
     #D3
-    df_dictionary['cra2021_Discl_D3.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D3.dat']['Agency Code'].map({
+    df_dictionary[d3]['Agency Code'] =  df_dictionary[d3]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D3.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D3.dat']['Loan Type'].map({
+    df_dictionary[d3]['Loan Type'] =  df_dictionary[d3]['Loan Type'].map({
        4:"Small Business"
     })
 
-    df_dictionary['cra2021_Discl_D3.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D3.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d3]['MSA/MD'] = df_dictionary[d3]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D3.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D3.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d3]['Assessment Area Number'] =  df_dictionary[d3]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D3.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D3.dat']['Partial County Indicator'].map({
+    df_dictionary[d3]['Partial County Indicator'] =  df_dictionary[d3]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D3.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D3.dat']['Split County Indicator'].map({
+    df_dictionary[d3]['Split County Indicator'] =  df_dictionary[d3]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D22.dat']['Report Level'].map({
+    df_dictionary[d3]['Report Level'] =  df_dictionary[d3]['Report Level'].map({
         5:"Assessment Area Total",
         10:"County Total within Assessment Area",
         15:"Activity Inside all Assessment Areas",
@@ -1860,33 +1900,33 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     })
 
     #D4
-    df_dictionary['cra2021_Discl_D4.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D4.dat']['Agency Code'].map({
+    df_dictionary[d4]['Agency Code'] =  df_dictionary[d4]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D4.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D4.dat']['Loan Type'].map({
+    df_dictionary[d4]['Loan Type'] =  df_dictionary[d4]['Loan Type'].map({
       5:"Small Farm"
     })
 
-    df_dictionary['cra2021_Discl_D4.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D4.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d4]['MSA/MD'] = df_dictionary[d4]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D4.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D4.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d4]['Assessment Area Number'] =  df_dictionary[d4]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D4.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D4.dat']['Partial County Indicator'].map({
+    df_dictionary[d4]['Partial County Indicator'] =  df_dictionary[d4]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D4.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D4.dat']['Split County Indicator'].map({
+    df_dictionary[d4]['Split County Indicator'] =  df_dictionary[d4]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D22.dat']['Report Level'] =  df_dictionary['cra2021_Discl_D22.dat']['Report Level'].map({
+    df_dictionary[d4]['Report Level'] =  df_dictionary[d4]['Report Level'].map({
         5:"Assessment Area Total",
         10:"County Total within Assessment Area",
         15:"Activity Inside all Assessment Areas",
@@ -1895,55 +1935,55 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     })
 
     #D5
-    df_dictionary['cra2021_Discl_D5.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D5.dat']['Agency Code'].map({
+    df_dictionary[d5]['Agency Code'] =  df_dictionary[d5]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     })
 
-    df_dictionary['cra2021_Discl_D5.dat']['Loan Type'] =  df_dictionary['cra2021_Discl_D5.dat']['Loan Type'].map({
+    df_dictionary[d5]['Loan Type'] =  df_dictionary[d5]['Loan Type'].map({
         6:"Community Development",
         7:"Consortium/Third-Party"
     })
 
-    df_dictionary['cra2021_Discl_D5.dat']['Action Type'] =  df_dictionary['cra2021_Discl_D5.dat']['Action Type'].map({
+    df_dictionary[d5]['Action Type'] =  df_dictionary[d5]['Action Type'].map({
         "O":"Originated",
         "P":"Purchased",
         "T":"Total (Originated + Purchased)"
     })
     
     #D6
-    df_dictionary['cra2021_Discl_D6.dat']['Agency Code'] =  df_dictionary['cra2021_Discl_D6.dat']['Agency Code'].map({
+    df_dictionary[d6]['Agency Code'] =  df_dictionary[d6]['Agency Code'].map({
         1:"OCC", 
         2:"FRS",
         3:"FDIC",
         4:"OTS"
     }).replace(np.nan, "total")
 
-    df_dictionary['cra2021_Discl_D6.dat']['MSA/MD'] = df_dictionary['cra2021_Discl_D6.dat']['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
+    df_dictionary[d6]['MSA/MD'] = df_dictionary[d6]['MSA/MD'].replace(np.nan, "area outside of MSA/MD")
 
-    df_dictionary['cra2021_Discl_D6.dat']['Census Tract'] = df_dictionary['cra2021_Discl_D6.dat']['Census Tract'].apply(format_census_tract)
+    df_dictionary[d6]['Census Tract'] = df_dictionary[d6]['Census Tract'].apply(format_census_tract)
 
-    df_dictionary['cra2021_Discl_D6.dat']['Assessment Area Number'] =  df_dictionary['cra2021_Discl_D6.dat']['Assessment Area Number'].replace(\
+    df_dictionary[d6]['Assessment Area Number'] =  df_dictionary[d6]['Assessment Area Number'].replace(\
         np.nan, "area outside of an Assessment Area(s) (including predominately military areas)")
 
-    df_dictionary['cra2021_Discl_D6.dat']['Partial County Indicator'] =  df_dictionary['cra2021_Discl_D6.dat']['Partial County Indicator'].map({
+    df_dictionary[d6]['Partial County Indicator'] =  df_dictionary[d6]['Partial County Indicator'].map({
         "Y":"Yes", 
         "N":"No"
     })
 
-    df_dictionary['cra2021_Discl_D6.dat']['Split County Indicator'] =  df_dictionary['cra2021_Discl_D6.dat']['Split County Indicator'].map({
+    df_dictionary[d6]['Split County Indicator'] =  df_dictionary[d6]['Split County Indicator'].map({
         "Y":"Yes",
         "N":"No"
     })
 
-    df_dictionary['cra2021_Discl_D6.dat']['Population Classification'] =  df_dictionary['cra2021_Discl_D6.dat']['Population Classification'].map({
+    df_dictionary[d6]['Population Classification'] =  df_dictionary[d6]['Population Classification'].map({
         "S":"counties with < or = to 500,000 in population",
         "L":"counties with >500,000 in population"
     })
 
-    df_dictionary['cra2021_Discl_D6.dat']['Income Group'] =  df_dictionary['cra2021_Discl_D6.dat']['Income Group'].map({
+    df_dictionary[d6]['Income Group'] =  df_dictionary[d6]['Income Group'].map({
         1:"< 10% of Median Family Income(MFI)",
         2:"10% to 20% of MFI",
         3:"20% to 30% of MFI",
@@ -1967,7 +2007,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         106:"Tract not Known (NA)"
     })
 
-    df_dictionary['cra2021_Discl_D6.dat']['Loan Indicator'] =  df_dictionary['cra2021_Discl_D6.dat']['Loan Indicator'].map({
+    df_dictionary[d6]['Loan Indicator'] =  df_dictionary[d6]['Loan Indicator'].map({
         "Y":"Yes",
         "N":"No"
     })
@@ -2008,41 +2048,59 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     Returns:
          A dictionary of cra dataframes with loan amount columns showing their full amount(e.g. 153 is not 153000)
          """
+    # multiply all fields containing "total loan amount" by 1000
     for file_name in df_dict.keys():
         for column in df_dict[file_name].columns:
             if 'Total Loan Amount'in column:
                 #print(file_name, column)
                 df_dict[file_name][column] = df_dict[file_name][column]*1000 
+
+    a11 = [file for file in df_dict.keys() if 'a11' in file.lower() and 'a11a' not in file.lower()][0]
+    a11a = [file for file in df_dict.keys() if 'a11a' in file.lower()][0]
+    a12 = [file for file in df_dict.keys() if 'a12' in file.lower() and 'a12a' not in file.lower()][0]
+    a12a = [file for file in df_dict.keys() if 'a12a' in file.lower()][0]
+    a21 = [file for file in df_dict.keys() if 'a21' in file.lower() and 'a21a' not in file.lower()][0]
+    a21a = [file for file in df_dict.keys() if 'a21a' in file.lower()][0]
+    a22 = [file for file in df_dict.keys() if 'a22' in file.lower() and 'a22a' not in file.lower()][0]
+    a22a = [file for file in df_dict.keys() if 'a22a' in file.lower()][0]
+    d11 = [file for file in df_dict.keys() if 'd11' in file.lower()][0]
+    d12 = [file for file in df_dict.keys() if 'd12' in file.lower()][0]
+    d21 = [file for file in df_dict.keys() if 'd21' in file.lower()][0]
+    d22 = [file for file in df_dict.keys() if 'd22' in file.lower()][0]
+    d3 = [file for file in df_dict.keys() if 'd3' in file.lower()][0]
+    d4 = [file for file in df_dict.keys() if 'd4' in file.lower()][0]
+    d5 = [file for file in df_dict.keys() if 'd5' in file.lower()][0]
+    d6 = [file for file in df_dict.keys() if 'd6' in file.lower()][0]
     
     # filter Discl 11 down to Texas and Tarrant, Collin, and Dallas counties
-    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'][df_dict['cra2021_Discl_D11.dat']['State'] == 'TEXAS']
-    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'][(df_dict['cra2021_Discl_D11.dat']['County'] == 'Tarrant County') | (df_dict['cra2021_Discl_D11.dat']['County'] == 'Collin County') | (df_dict['cra2021_Discl_D11.dat']['County'] == 'Dallas County')]
+    df_dict[d11] = df_dict[d11][df_dict[d11]['State'] == 'TEXAS']
+    df_dict[d11] = df_dict[d11][(df_dict[d11]['County'] == 'Tarrant County') | (df_dict[d11]['County'] == 'Collin County') | (df_dict[d11]['County'] == 'Dallas County')]
     
     # filter Discl 6 down to Texas and Tarrant, Collin, and Dallas counties
-    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][df_dict['cra2021_Discl_D6.dat']['State'] == 'TEXAS']
-    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'][(df_dict['cra2021_Discl_D6.dat']['County'] == 'Tarrant County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Collin County') | (df_dict['cra2021_Discl_D6.dat']['County'] == 'Dallas County')]
+    df_dict[d6] = df_dict[d6][df_dict[d6]['State'] == 'TEXAS']
+    df_dict[d6] = df_dict[d6][(df_dict[d6]['County'] == 'Tarrant County') | (df_dict[d6]['County'] == 'Collin County') | (df_dict[d6]['County'] == 'Dallas County')]
 
     # remove leading and trailing whitespace from column of all datasets 
-    df_dict['cra2021_Aggr_A11.dat'] = df_dict['cra2021_Aggr_A11.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A11a.dat'] = df_dict['cra2021_Aggr_A11a.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A12.dat'] = df_dict['cra2021_Aggr_A12.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A12a.dat'] = df_dict['cra2021_Aggr_A12a.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A21.dat'] = df_dict['cra2021_Aggr_A21.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A21a.dat'] = df_dict['cra2021_Aggr_A21a.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A22.dat'] = df_dict['cra2021_Aggr_A22.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Aggr_A22a.dat'] = df_dict['cra2021_Aggr_A22a.dat'].rename(columns = lambda x: x.strip()) 
-    df_dict['cra2021_Discl_D11.dat'] = df_dict['cra2021_Discl_D11.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D12.dat'] = df_dict['cra2021_Discl_D12.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D21.dat'] = df_dict['cra2021_Discl_D21.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D22.dat'] = df_dict['cra2021_Discl_D22.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D3.dat'] = df_dict['cra2021_Discl_D3.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D4.dat'] = df_dict['cra2021_Discl_D4.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D5.dat'] = df_dict['cra2021_Discl_D5.dat'].rename(columns = lambda x: x.strip())
-    df_dict['cra2021_Discl_D6.dat'] = df_dict['cra2021_Discl_D6.dat'].rename(columns = lambda x: x.strip())
+    df_dict[a11] = df_dict[a11].rename(columns = lambda x: x.strip())
+    df_dict[a11a] = df_dict[a11a].rename(columns = lambda x: x.strip())
+    df_dict[a12] = df_dict[a12].rename(columns = lambda x: x.strip())
+    df_dict[a12a] = df_dict[a12a].rename(columns = lambda x: x.strip())
+    df_dict[a21] = df_dict[a21].rename(columns = lambda x: x.strip())
+    df_dict[a21a] = df_dict[a21a].rename(columns = lambda x: x.strip())
+    df_dict[a22] = df_dict[a22].rename(columns = lambda x: x.strip())
+    df_dict[a22a] = df_dict[a22a].rename(columns = lambda x: x.strip()) 
+    df_dict[d11] = df_dict[d11].rename(columns = lambda x: x.strip())
+    df_dict[d12] = df_dict[d12].rename(columns = lambda x: x.strip())
+    df_dict[d21] = df_dict[d21].rename(columns = lambda x: x.strip())
+    df_dict[d22] = df_dict[d22].rename(columns = lambda x: x.strip())
+    df_dict[d3] = df_dict[d3].rename(columns = lambda x: x.strip())
+    df_dict[d4] = df_dict[d4].rename(columns = lambda x: x.strip())
+    df_dict[d5] = df_dict[d5].rename(columns = lambda x: x.strip())
+    df_dict[d6] = df_dict[d6].rename(columns = lambda x: x.strip())
 
     # Only keep D11 and D6 (to cut down on memory issues)
-    final_cra_dict = {'cra2021_Discl_D11.dat': df_dict['cra2021_Discl_D11.dat'], # Small business loans by County level
-                      'cra2021_Discl_D6.dat': df_dict['cra2021_Discl_D6.dat']  # Assessment area by census tract
+    final_cra_dict = {d11: df_dict[d11], # Small business loans by County level
+                      d6: df_dict[d6]  # Assessment area by census tract
                         }
     return final_cra_dict
 
