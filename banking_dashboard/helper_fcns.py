@@ -957,7 +957,7 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     return hmda_dict
 
 # cra helper function      
-def cra_data_ingester(file:str, data_folder:str = 'data')->dict[str:pd.core.frame.DataFrame]:
+def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->dict[str:pd.core.frame.DataFrame]:
     """Used to read in cra .dat fwf files from directory(both agg and discl files need to be unzipped in directory where this function is being run from).
     
     Args:
@@ -1167,26 +1167,26 @@ def cra_data_ingester(file:str, data_folder:str = 'data')->dict[str:pd.core.fram
     
     d6_widths = [5,10,1,4,2,3,5,7,4,1,1,1,3,1,96]
 
-    most_recent_year = max([re.findall(r'\d{4}',file)[0] for file in os.listdir('data') if 'cra' in file])
-
+    # most_recent_year = max([re.findall(r'\d{4}',file)[0] for file in os.listdir('data') if 'cra' in file])
+    lst_of_files = file_lst
     
     fwf_dimensions_dict = {
-        [file for file in os.listdir('data') if 'a11' in file.lower() and 'a11a' not in file.lower() and most_recent_year in file][0]:[a_1_1_widths,a_1_1_fields],
-        [file for file in os.listdir('data') if 'a11a' in file.lower() and most_recent_year in file][0]:[a_1_1a_widths,a_1_1a_fields],
-        [file for file in os.listdir('data') if 'a12' in file.lower() and 'a12a' not in file.lower() and most_recent_year in file][0]:[a_1_2_widths,a_1_2_fields],
-        [file for file in os.listdir('data') if 'a12a' in file.lower() and most_recent_year in file][0]:[a_1_2a_widths,a_1_2a_fields],
-        [file for file in os.listdir('data') if 'a21' in file.lower() and 'a21a' not in file.lower() and most_recent_year in file][0]:[a_2_1_widths,a_2_1_fields],
-        [file for file in os.listdir('data') if 'a21a' in file.lower() and most_recent_year in file][0]:[a_2_1a_widths,a_2_1a_fields],
-        [file for file in os.listdir('data') if 'a22' in file.lower() and 'a22a' not in file.lower() and most_recent_year in file][0]:[a_2_2_widths,a_2_2_fields],
-        [file for file in os.listdir('data') if 'a22a' in file.lower() and most_recent_year in file][0]:[a_2_2a_widths,a_2_2a_fields],
-        [file for file in os.listdir('data') if 'd11' in file.lower() and most_recent_year in file][0]:[d_1_1_widths,d_1_1_fields],
-        [file for file in os.listdir('data') if 'd12' in file.lower() and most_recent_year in file][0]:[d_1_2_widths,d_1_2_fields],
-        [file for file in os.listdir('data') if 'd21' in file.lower() and most_recent_year in file][0]:[d_2_1_widths,d_2_1_fields],
-        [file for file in os.listdir('data') if 'd22' in file.lower() and most_recent_year in file][0]:[d_2_2_widths,d_2_2_fields],
-        [file for file in os.listdir('data') if 'd3' in file.lower() and most_recent_year in file][0]:[d3_widths,d3_fields],
-        [file for file in os.listdir('data') if 'd4' in file.lower() and most_recent_year in file][0]:[d4_widths,d4_fields],
-        [file for file in os.listdir('data') if 'd5' in file.lower() and most_recent_year in file][0]:[d5_widths,d5_fields],
-        [file for file in os.listdir('data') if 'd6' in file.lower() and most_recent_year in file][0]:[d6_widths,d6_fields]}
+        [file for file in file_lst if 'a11' in file.lower() and 'a11a' not in file.lower()][0]:[a_1_1_widths,a_1_1_fields],
+        [file for file in file_lst if 'a11a' in file.lower()][0]:[a_1_1a_widths,a_1_1a_fields],
+        [file for file in file_lst if 'a12' in file.lower() and 'a12a' not in file.lower()][0]:[a_1_2_widths,a_1_2_fields],
+        [file for file in file_lst if 'a12a' in file.lower()][0]:[a_1_2a_widths,a_1_2a_fields],
+        [file for file in file_lst if 'a21' in file.lower() and 'a21a' not in file.lower()][0]:[a_2_1_widths,a_2_1_fields],
+        [file for file in file_lst if 'a21a' in file.lower()][0]:[a_2_1a_widths,a_2_1a_fields],
+        [file for file in file_lst if 'a22' in file.lower() and 'a22a' not in file.lower()][0]:[a_2_2_widths,a_2_2_fields],
+        [file for file in file_lst if 'a22a' in file.lower()][0]:[a_2_2a_widths,a_2_2a_fields],
+        [file for file in file_lst if 'd11' in file.lower()][0]:[d_1_1_widths,d_1_1_fields],
+        [file for file in file_lst if 'd12' in file.lower()][0]:[d_1_2_widths,d_1_2_fields],
+        [file for file in file_lst if 'd21' in file.lower()][0]:[d_2_1_widths,d_2_1_fields],
+        [file for file in file_lst if 'd22' in file.lower()][0]:[d_2_2_widths,d_2_2_fields],
+        [file for file in file_lst if 'd3' in file.lower()][0]:[d3_widths,d3_fields],
+        [file for file in file_lst if 'd4' in file.lower()][0]:[d4_widths,d4_fields],
+        [file for file in file_lst if 'd5' in file.lower()][0]:[d5_widths,d5_fields],
+        [file for file in file_lst if 'd6' in file.lower()][0]:[d6_widths,d6_fields]}
     
     df_dict = {}
     for i in os.listdir(data_folder):
@@ -1238,22 +1238,22 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     d4 = [file for file in df_dictionary.keys() if 'd4' in file.lower()][0]
     d5 = [file for file in df_dictionary.keys() if 'd5' in file.lower()][0]
     d6 = [file for file in df_dictionary.keys() if 'd6' in file.lower()][0]
-    print(a11)
-    print(a11a)
-    print(a12)
-    print(a12a)
-    print(a21)
-    print(a21a)
-    print(a22)
-    print(a22a)
-    print(d11)
-    print(d12)
-    print(d21)
-    print(d22)
-    print(d3)
-    print(d4)
-    print(d5)
-    print(d6)
+    # print(a11)
+    # print(a11a)
+    # print(a12)
+    # print(a12a)
+    # print(a21)
+    # print(a21a)
+    # print(a22)
+    # print(a22a)
+    # print(d11)
+    # print(d12)
+    # print(d21)
+    # print(d22)
+    # print(d3)
+    # print(d4)
+    # print(d5)
+    # print(d6)
 
     # A11
     df_dictionary[a11]['Loan Type'] = df_dictionary[a11]['Loan Type'].map({
