@@ -1168,7 +1168,7 @@ def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->d
     d6_widths = [5,10,1,4,2,3,5,7,4,1,1,1,3,1,96]
 
     # most_recent_year = max([re.findall(r'\d{4}',file)[0] for file in os.listdir('data') if 'cra' in file])
-    lst_of_files = file_lst
+    #lst_of_files = file_lst
     
     fwf_dimensions_dict = {
         [file for file in file_lst if 'a11' in file.lower() and 'a11a' not in file.lower()][0]:[a_1_1_widths,a_1_1_fields],
@@ -1220,8 +1220,6 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         A dictionary of cra data dataframes where the .dat cra data file name is the key and the corresponding dataframe is the value.
     """
     # save all file strings to variables 
-
-    
     a11 = [file for file in df_dictionary.keys() if 'a11' in file.lower() and 'a11a' not in file.lower()][0]
     a11a = [file for file in df_dictionary.keys() if 'a11a' in file.lower()][0]
     a12 = [file for file in df_dictionary.keys() if 'a12' in file.lower() and 'a12a' not in file.lower()][0]
