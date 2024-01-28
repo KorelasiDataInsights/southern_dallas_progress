@@ -23,6 +23,12 @@ import time
 
 
 # General  functions not specific to data source
+def fmt_respondent_id(respondent_id_val):
+  # Cast as string if necessary
+  respondent_id_val = str(respondent_id_val)
+  # Include as many leading zeroes as needed to get up to 10 characters
+  return respondent_id_val.zfill(10)
+
 def format_census_tract(tract_number):
     return '%07.2F'% tract_number
 
@@ -972,6 +978,13 @@ def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->d
     #zip_ref = zipfile.ZipFile('21exp_aggr.zip', 'r') #zipfile not zip file error
 
     #def fixed width file mappings
+    transmittal_fields = ["Respondent ID", "Agency Code","Activity Year","Respondent Name","Respondent Address","Respondent City",
+                      "Respondent State","Respondent Zip Code", "Tax ID", "ID_RSSD", "Assets"]
+
+    transmittal_widths = [10,1,4,30,40,25,2,10,10,10,10]
+
+
+
     a_1_1_fields  = ["Table ID","Activity Year", "Loan Type", "Action Taken Type", "State", "County", "MSA/MD", "Census Tract", 
     "Split County Indicator", "Population Classification", "Income Group Total", "Report Level",
     "Number of Small Business Loans Originated with Loan Amount at Origination < or = to $100,000", 
@@ -1168,9 +1181,10 @@ def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->d
     d6_widths = [5,10,1,4,2,3,5,7,4,1,1,1,3,1,96]
 
     # most_recent_year = max([re.findall(r'\d{4}',file)[0] for file in os.listdir('data') if 'cra' in file])
-    #lst_of_files = file_lst
+    # lst_of_files = file_lst
     
     fwf_dimensions_dict = {
+        [file for file in file_lst if 'transmittal' in file.lower()][0]:[transmittal_widths,transmittal_fields],
         [file for file in file_lst if 'a11' in file.lower() and 'a11a' not in file.lower()][0]:[a_1_1_widths,a_1_1_fields],
         [file for file in file_lst if 'a11a' in file.lower()][0]:[a_1_1a_widths,a_1_1a_fields],
         [file for file in file_lst if 'a12' in file.lower() and 'a12a' not in file.lower()][0]:[a_1_2_widths,a_1_2_fields],
@@ -1220,6 +1234,7 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
         A dictionary of cra data dataframes where the .dat cra data file name is the key and the corresponding dataframe is the value.
     """
     # save all file strings to variables 
+    transmittal_sheet = [file for file in df_dictionary.keys() if 'transmittal' in file.lower()][0]
     a11 = [file for file in df_dictionary.keys() if 'a11' in file.lower() and 'a11a' not in file.lower()][0]
     a11a = [file for file in df_dictionary.keys() if 'a11a' in file.lower()][0]
     a12 = [file for file in df_dictionary.keys() if 'a12' in file.lower() and 'a12a' not in file.lower()][0]
@@ -1252,6 +1267,13 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
     # print(d4)
     # print(d5)
     # print(d6)
+    
+    # Transmittal Sheet 
+    df_dictionary[transmittal_sheet]['Agency Code'] =  df_dictionary[transmittal_sheet]['Agency Code'].map({
+        1:"OCC", 
+        2:"FRS",
+        3:"FDIC"
+        })
 
     # A11
     df_dictionary[a11]['Loan Type'] = df_dictionary[a11]['Loan Type'].map({
@@ -2053,6 +2075,7 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
                 #print(file_name, column)
                 df_dict[file_name][column] = df_dict[file_name][column]*1000 
 
+    transmittal_sheet = [file for file in df_dict.keys() if 'transmittal' in file.lower()][0]
     a11 = [file for file in df_dict.keys() if 'a11' in file.lower() and 'a11a' not in file.lower()][0]
     a11a = [file for file in df_dict.keys() if 'a11a' in file.lower()][0]
     a12 = [file for file in df_dict.keys() if 'a12' in file.lower() and 'a12a' not in file.lower()][0]
@@ -2069,6 +2092,20 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     d4 = [file for file in df_dict.keys() if 'd4' in file.lower()][0]
     d5 = [file for file in df_dict.keys() if 'd5' in file.lower()][0]
     d6 = [file for file in df_dict.keys() if 'd6' in file.lower()][0]
+
+    # fill in leading zeroes for right justified Respondent IDs
+    df_dict[transmittal_sheet]['Respondent ID'] = df_dict[transmittal_sheet]['Respondent ID'].apply(fmt_respondent_id)
+    df_dict[d11]['Respondent ID'] = df_dict[d11]['Respondent ID'].apply(fmt_respondent_id)
+    df_dict[d6]['Respondent ID'] = df_dict[d6]['Respondent ID'].apply(fmt_respondent_id)
+
+    # rename 'respondent' fields to 'institution' in transmittal sheet
+    df_dict[transmittal_sheet] = df_dict[transmittal_sheet].rename(columns = {
+        'Respondent Name':'Institution name',
+        'Respondent Address':'Institution address',
+        'Respondent City':'Institution city',
+        'Respondent State':'Institution state',
+        'Respondent Zip Code':'Institution zip code',
+        'Assets':'Institution assets'})
     
     # filter Discl 11 down to Texas and Tarrant, Collin, and Dallas counties
     df_dict[d11] = df_dict[d11][df_dict[d11]['State'] == 'TEXAS']
@@ -2098,7 +2135,8 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
 
     # Only keep D11 and D6 (to cut down on memory issues)
     final_cra_dict = {d11: df_dict[d11], # Small business loans by County level
-                      d6: df_dict[d6]  # Assessment area by census tract
+                      d6: df_dict[d6],  # Assessment area by census tract
+                      transmittal_sheet: df_dict[transmittal_sheet]
                         }
     return final_cra_dict
 
