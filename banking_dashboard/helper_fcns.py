@@ -2476,3 +2476,6 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
     foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['county_final'] == 'Tarrant County') | (foia_7a_2020_df['county_final'] == 'Collin County') | (foia_7a_2020_df['county_final'] == 'Dallas County')]
 
     return foia_7a_2020_df
+
+
+
