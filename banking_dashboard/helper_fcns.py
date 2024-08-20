@@ -2115,7 +2115,7 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     df_dict[d6] = df_dict[d6][df_dict[d6]['State'] == 'TEXAS']
     df_dict[d6] = df_dict[d6][(df_dict[d6]['County'] == 'Tarrant County') | (df_dict[d6]['County'] == 'Collin County') | (df_dict[d6]['County'] == 'Dallas County')]
 
-    # remove leading and trailing whitespace from column of all datasets 
+    # remove leading and trailing whitespace from column of all dataset3s 
     df_dict[a11] = df_dict[a11].rename(columns = lambda x: x.strip())
     df_dict[a11a] = df_dict[a11a].rename(columns = lambda x: x.strip())
     df_dict[a12] = df_dict[a12].rename(columns = lambda x: x.strip())
