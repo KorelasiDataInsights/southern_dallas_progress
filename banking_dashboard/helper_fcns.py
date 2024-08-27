@@ -242,7 +242,7 @@ def census_data_ingester(census_file_common_string:str)-> pd.core.frame.DataFram
     return census_df
 
 # ffiec helper function
-def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.core.frame.DataFrame:
+def ffiec_flat_file_extractor(data_folder:str,file:str, data_dict:str, ingest_all=False)->pd.core.frame.DataFrame:
     """Used to extract csv files from ffiec website and convert into pandas dataframe.
     
     Args:
@@ -258,13 +258,13 @@ def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.cor
     # zip_ref = zipfile.ZipFile(filename, 'r')
     # current_dir = os.getcwd()
     # unzipped = zip_ref.extractall(current_dir)
-    data_dictionary = pd.read_excel(data_dict, sheet_name = 'Data Dictionary')
+    data_dictionary = pd.read_excel(os.path.join(data_folder,data_dict), sheet_name = 'Data Dictionary')
     data_dictionary = data_dictionary[data_dictionary['Index']>=0]
     new_ffiec_cols = data_dictionary['Description']
     if ingest_all:
-        data = pd.read_csv(file, header = None)
+        data = pd.read_csv(os.path.join(data_folder,file), header = None)
     else:
-        data = pd.read_csv(file, header = None) #nrows = 8000,
+        data = pd.read_csv(os.path.join(data_folder,file), header = None) #nrows = 8000,
     old_ffiec_cols = data.columns
     replacement_map = dict(zip(old_ffiec_cols,new_ffiec_cols))
     data.rename(columns = replacement_map, inplace=True)
@@ -363,13 +363,14 @@ def ffiec_flat_file_extractor(file:str, data_dict:str, ingest_all=False)->pd.cor
     return data
 
 # hmda helper function
-def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.DataFrame]:
+def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',panel_file:str = 'panel',ts_file:str = 'ts')->dict[pd.core.frame.DataFrame]:
     
     """Used to read in all necessary .csv files from HMDA website and return a dictionary containing all of the read in
     files.
     
     Args: 
         url: url of HMDA page with zip file datasets on it. 
+        data_folder: file path for data folder 
         
     Returns:
         A dictionary of dataframes. One for each ingested file from the HMDA website.
@@ -384,11 +385,12 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     # of storing file. When analyzing the LAR dataset, using the dask library will work specificlly dask.dataframe().
 
     # read in loan/application records as df
-    #lar_df = pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'),  nrows = 2000000) 
+    #lar_df = pd.read_csv(os.path.join(data_folder, 'public_lar_csv.csv'),  nrows = 2000000) 
     # mapping values for columns in Loan/Application Records(LAR)
+    file_year = data_folder.split('\\')[1]
     counter = 0
     lar_df_full = pd.DataFrame()
-    for lar_df_chunk in pd.read_csv(os.path.join(data_folder, '2022_public_lar_csv.csv'), chunksize=50000):
+    for lar_df_chunk in pd.read_csv(os.path.join(data_folder, lar_file), chunksize=50000):
         lar_df_chunk['conforming_loan_limit'] = lar_df_chunk['conforming_loan_limit'].map({"C (Conforming)":"Conforming",
                                                     "NC (Nonconforming)":"Nonconforming",
                                                     "U (Undetermined)":"Undetermined",
@@ -913,7 +915,7 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     lar_df_full = lar_df_full.rename(columns = lambda x: x.strip())
         
     # read in transmittal sheet records as df
-    ts_df = pd.read_csv(os.path.join(data_folder, "2022_public_ts_csv.csv"))
+    ts_df = pd.read_csv(os.path.join(data_folder, ts_file))
     
     # replacing values of "agency_code" with actual string fields in transmittal sheet dataset and removing whitespace from column names
     ts_df['agency_code'] = ts_df['agency_code'].map({1:"Office of the Comptroller of the Currency",
@@ -925,7 +927,7 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     ts_df = ts_df.rename(columns = lambda x: x.strip())    
 
     # read in reporter panel data as df
-    panel_df = pd.read_csv(os.path.join(data_folder, '2022_public_panel_csv.csv'), na_values = [-1]) # -1 is being encoded for NULL so I am replacing 
+    panel_df = pd.read_csv(os.path.join(data_folder, panel_file), na_values = [-1]) # -1 is being encoded for NULL so I am replacing 
                                                                           # -1 with NaN. No description in data dictionary for 
                                                                           # field called "upper"
             
@@ -948,17 +950,17 @@ def hmda_data_ingester(url:str, data_folder:str = 'data')->dict[pd.core.frame.Da
     panel_df = panel_df.rename(columns = lambda x: x.strip())
 
     # read in metropolitan statistical area and metropolitan division data as df
-    msamd_df = pd.read_csv(os.path.join(data_folder, '2022_public_msamd_csv.csv')) # nothing written in data dictionary saying 99999 is na but it does
-                                                        # not look like a legitamate msa_md code
+    # msamd_df = pd.read_csv(os.path.join('data', 'public_msamd_csv.csv')) # nothing written in data dictionary saying 99999 is na but it does
+    #                                                     # not look like a legitamate msa_md code
 
     # recast data types and removing whitespace from column names 
-    msamd_df = msamd_df.astype({"msa_md":str})
-    msamd_df = msamd_df.rename(columns = lambda x: x.strip())    
+    # msamd_df = msamd_df.astype({"msa_md":str})
+    # msamd_df = msamd_df.rename(columns = lambda x: x.strip())    
         
     # arid_2017 = pd.read_csv('arid2017_to_lei_xref_csv.csv') # not using for the moment because not joining in previous 
                                                               # years so do not need to use                                                         
         
-    hmda_dict = {"lar_df":lar_df_full,"ts_df":ts_df, "panel_df":panel_df, "msamd_df":msamd_df}
+    hmda_dict = {"lar_df":lar_df_full,"ts_df":ts_df, "panel_df":panel_df}#, "msamd_df":msamd_df}
    
     return hmda_dict
 
@@ -2115,7 +2117,7 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     df_dict[d6] = df_dict[d6][df_dict[d6]['State'] == 'TEXAS']
     df_dict[d6] = df_dict[d6][(df_dict[d6]['County'] == 'Tarrant County') | (df_dict[d6]['County'] == 'Collin County') | (df_dict[d6]['County'] == 'Dallas County')]
 
-    # remove leading and trailing whitespace from column of all datasets 
+    # remove leading and trailing whitespace from column of all dataset3s 
     df_dict[a11] = df_dict[a11].rename(columns = lambda x: x.strip())
     df_dict[a11a] = df_dict[a11a].rename(columns = lambda x: x.strip())
     df_dict[a12] = df_dict[a12].rename(columns = lambda x: x.strip())
@@ -2141,7 +2143,7 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     return final_cra_dict
 
 # fdic helper function
-def changec_label_adder(file_name:str)->dict[str:str]:
+def changec_label_adder(data_folder:str,file_name:str)->dict[str:str]:
     """Used to create dictionary of old column names as the key and new column names as the value using the institutions definitions file.
     
     Args: 
@@ -2150,7 +2152,7 @@ def changec_label_adder(file_name:str)->dict[str:str]:
     Returns:
         a dictionary of old column names as the keys and new column names as the values
         """
-    institutions_definitions_df = pd.read_csv(file_name)
+    institutions_definitions_df = pd.read_csv(os.path.join(data_folder,file_name))
     col_name_replace_map = dict(zip(institutions_definitions_df['Variable Name'],institutions_definitions_df['Variable Label']))  
     # loop through the dictionary create between the variable name and variable label fields to add numbers to distinguish the CHANGEC
     # values
@@ -2161,8 +2163,8 @@ def changec_label_adder(file_name:str)->dict[str:str]:
     col_name_replace_map['TRACT'] = 'Institutions with reportable fiduciary related service'
     return col_name_replace_map  
 
-def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[str:str])->pd.core.frame.DataFrame:
-    """Used to read in institution data for those created on or before 12/31/2023 and are in dallas, collins or tarrant county.
+def fdic_institutions_ingester(data_folder:str,institutions_file_name:str, col_replace_map:dict[str:str], analysis_yr:str)->pd.core.frame.DataFrame:
+    """Used to read in institution data for those created on or before 12/31/analysis_year and are in dallas, collins or tarrant county.
     
     Args: 
         institutions_file_name: Name of institutions data file
@@ -2171,7 +2173,8 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
     Returns:
         A dataframe of the fdic institutions data
         """
-    institutions_df = pd.read_csv(institutions_file_name)
+    year_upper_bound = str(analysis_yr) + '-12-31'
+    institutions_df = pd.read_csv(os.path.join(data_folder,institutions_file_name))
     institutions_df = institutions_df.rename(columns = col_replace_map)
     # map in values for columns using numbers to represnet description
     institutions_df['Institution Status'] = institutions_df['Institution Status'].map({ 1:'Institutions that are currently open and insured by the FDIC',
@@ -2250,33 +2253,33 @@ def fdic_institutions_ingester(institutions_file_name:str, col_replace_map:dict[
                                                                                                      13:"Dallas",
                                                                                                      14:"San Francisco",
                                                                                                      16:"Office of Complex Financial Institutions (CFI)"})
-    # institutions_df['Trust Powers'] = institutions_df['Trust Powers'].map({00:"Trust Powers Not Known",
-    #                                                                        "10":"Full Trust Powers Granted",
-    #                                                                        "11":"Full Trust Powers Granted, Exercised",
-    #                                                                        "12":"Full Trust Powers Granted, Not Exercised",
-    #                                                                        "20":"Limited Trust Powers Granted",
-    #                                                                        "21":"Limited Trust Powers Granted, Exercised",
-    #                                                                        "30":"Trust Powers Not Granted",
-    #                                                                        "31":"Trust Powers Not Granted, But Exercised",
-    #                                                                        "40":"Trust Powers Grandfathered"})
+    institutions_df['Trust Powers'] = institutions_df['Trust Powers'].map({00:"Trust Powers Not Known",
+                                                                           "10":"Full Trust Powers Granted",
+                                                                           "11":"Full Trust Powers Granted, Exercised",
+                                                                           "12":"Full Trust Powers Granted, Not Exercised",
+                                                                           "20":"Limited Trust Powers Granted",
+                                                                           "21":"Limited Trust Powers Granted, Exercised",
+                                                                           "30":"Trust Powers Not Granted",
+                                                                           "31":"Trust Powers Not Granted, But Exercised",
+                                                                           "40":"Trust Powers Grandfathered"})
     institutions_df['State Charter'] = institutions_df['State Charter'].map({1:"yes",0:"no"})
     institutions_df['FFIEC Call Report 31 Filer'] = institutions_df['FFIEC Call Report 31 Filer'].map({1:"yes",0:"no"})
     institutions_df['Bank Holding Company Type'] = institutions_df['Bank Holding Company Type'].map({1:"yes", 0:"no"})
     institutions_df['Deposit Insurance Fund member'] = institutions_df['Deposit Insurance Fund member'].map({1:"Yes", 0:"No"})
     institutions_df['Law Sasser Flag'] = institutions_df['Law Sasser Flag'].map({1:"Yes", 0:"No"})
     institutions_df = institutions_df.astype({'Credit Card Institutions':int}, errors = 'ignore')
-    # filter for established in 12/31/2022 or before
+    # filter for established in 12/31/analysis_year or before
     institutions_df['Established Date'] = pd.to_datetime(institutions_df['Established Date'])
-    institutions_df[institutions_df['Established Date'] <= '2022-12-31']
+    institutions_df[institutions_df['Established Date'] <= year_upper_bound]
     # filter for dallas, collins and tarrant counties in TX
-    # institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
-    # institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
+    institutions_df = institutions_df[institutions_df['State Alpha code'] == 'TX']
+    institutions_df = institutions_df[(institutions_df['County'] == 'Tarrant') | (institutions_df['County'] == 'Collin') | (institutions_df['County'] == 'Dallas')]
     institutions_df = institutions_df.reset_index().set_index('FDIC Certificate #').reset_index()
     institutions_df = institutions_df.rename(columns = lambda x: x.strip())
     return institutions_df
 
-def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.frame.DataFrame:
-    """Used to read in locations data for those created on or before 12/31/2023 and are in dallas, collins or tarrant county.
+def fdic_locations_mapper(data_folder:str,locations_def_file:str, locations_file:str, analysis_yr:str)->pd.core.frame.DataFrame:
+    """Used to read in locations data for those created on or before 12/31/analysis_year and are in dallas, collins or tarrant county.
     
     Args: 
         locations_file: Name of locations data file
@@ -2285,11 +2288,12 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     Returns:
         A dataframe of of the fdic locations data
     """ 
-    loc_fed_df = pd.read_csv(locations_def_file)
+    year_upper_bound = str(analysis_yr) + '-12-31'
+    loc_fed_df = pd.read_csv(os.path.join(data_folder,locations_def_file))
     bkclass_replace_map = dict(zip(loc_fed_df.iloc[2:8,:]['TITLE'].str.replace(' ','').str.strip('-'), loc_fed_df.iloc[2:8,:]['DEFINITION']))
     serve_type_map = dict(zip(loc_fed_df.iloc[31:47,:]['TITLE'],loc_fed_df.iloc[31:47,:]['DEFINITION']))
     inst_col_name_map = dict(zip(loc_fed_df[loc_fed_df['NAME'].notnull()]['NAME'], loc_fed_df[loc_fed_df['NAME'].notnull()]['TITLE']))
-    fdic_locations_df = pd.read_csv(locations_file)
+    fdic_locations_df = pd.read_csv(os.path.join(data_folder,locations_file))
     fdic_locations_df['BKCLASS'] = fdic_locations_df['BKCLASS'].map(bkclass_replace_map)
     fdic_locations_df['SERVTYPE'] = fdic_locations_df['SERVTYPE'].map(serve_type_map)
     fdic_locations_df.rename(columns = inst_col_name_map, inplace = True)
@@ -2299,7 +2303,7 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     fdic_locations_df['Micropolitan Division Flag (Branch)'] = fdic_locations_df['Micropolitan Division Flag (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Combined Statistical Area Flag  (Branch)'] = fdic_locations_df['Combined Statistical Area Flag  (Branch)'].map({1:"Yes",0:"No"})
     fdic_locations_df['Branch Established Date'] = pd.to_datetime(fdic_locations_df['Branch Established Date'])
-    fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch Established Date'] <= '2022-12-31']
+    fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch Established Date'] <= year_upper_bound]
     # filter for location in texas and counties that are dallas, collins or tarrant
     fdic_locations_df = fdic_locations_df[fdic_locations_df['Branch State   '] == 'Texas']
     final_fdic_locations_df = fdic_locations_df[(fdic_locations_df['Branch County'] == 'Tarrant') | (fdic_locations_df['Branch County'] == 'Collin') | (fdic_locations_df['Branch County'] == 'Dallas')]
@@ -2323,11 +2327,11 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     final_fdic_locations_df = final_fdic_locations_df.reset_index()
     final_fdic_locations_df['index'] = final_fdic_locations_df['index'].apply(str)
     final_fdic_locations_df['idx_branch_number'] = '(' + final_fdic_locations_df['index'] +') '+  final_fdic_locations_df['Branch Number'].apply(str)
-    final_fdic_locations_df[['idx_branch_number','Branch Address','Branch City', 'Branch State Abbreviation','Branch Zip Code']].set_index('idx_branch_number').to_csv('data/fdic_locations_sample.csv')
+    final_fdic_locations_df[['idx_branch_number','Branch Address','Branch City', 'Branch State Abbreviation','Branch Zip Code']].set_index('idx_branch_number').to_csv(os.path.join(data_folder,'fdic_locations_sample.csv'))
 
     # lookup census codes for batch  
     start = time.time()
-    b = census_batch_lookup('data/fdic_locations_sample.csv', 'Branch')
+    b = census_batch_lookup(os.path.join(data_folder,'fdic_locations_sample.csv'), 'Branch')
     end = time.time()
     print('process completed in',end - start, 'seconds')
 
@@ -2352,7 +2356,7 @@ def fdic_locations_mapper(locations_def_file:str, locations_file:str)->pd.core.f
     return final_fdic_locations_df
 
 # sba helper function
-def sba_data_ingester(url:str)->pd.core.frame.DataFrame:  
+def sba_data_ingester(url:str,analysis_yr:str,data_folder:str)->pd.core.frame.DataFrame:  
     """Takes in url of sba FOIA - 7(a) csv file, downloads it, cleans it and retuns a pandas dataframe of the file.
     
     Args:
@@ -2362,11 +2366,17 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
          A dataframe of the downloaded and cleaned csv file.    
     """
     file_name = url.split('/')[-1]
+    # way 2
+    # sba_file_year = '20' + re.findall('\d+',file.split('-')[-1])[0][0:2] # split file name, grab portion containing data, get year 
+    year_lower_bound = str(int(analysis_yr) - 1) + '-12-31'
+    year_upper_bound = str(int(year_lower_bound.split('-')[0]) + 2) + '-01-01'
     r = requests.get(url, allow_redirects = True)
     open(file_name,'wb').write(r.content)
-    foia_7a_2020_df = pd.read_csv('foia-7afy2020-present-asof-230630.csv', encoding = 'latin-1')
-    # map in vales for intries in columns 
-    foia_7a_2020_df['DeliveryMethod'] = foia_7a_2020_df['DeliveryMethod'].map({
+    foia_7a_df = pd.read_csv(file_name, encoding = 'latin-1')
+    # lower all column names and rename soldsecmr string containing column to SOLDSECMRTIND
+    foia_7a_df.columns = ['SOLDSECMRTIND' if 'soldsecmr' in column_name else column_name.lower() for column_name in foia_7a_df.columns]
+    # map in vales for intries in columns
+    foia_7a_df['deliverymethod'] = foia_7a_df['deliverymethod'].map({
           "CA":"Community Advantage",
           "CLP":"Certified Lenders Program",
           "COMM EXPRS":"Community Express (inactive)",
@@ -2387,7 +2397,7 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
           "Y2K":"Y2K Loan (inactive)"
     })
     
-    foia_7a_2020_df['LoanStatus'] = foia_7a_2020_df['LoanStatus'].map({
+    foia_7a_df['loanstatus'] = foia_7a_df['loanstatus'].map({
           "COMMIT":"Undisbursed",
           "PIF":"Paid In Full",
           "CHGOFF":"Charged Off",
@@ -2395,87 +2405,84 @@ def sba_data_ingester(url:str)->pd.core.frame.DataFrame:
           "EXEMPT":"The status of loans that have been disbursed but have not been cancelled, paid in full, or charged off are exempt from disclosure under FOIA Exemption 4"
     })
     
-    foia_7a_2020_df['RevolverStatus'] =  foia_7a_2020_df['RevolverStatus'].map({
+    foia_7a_df['revolverstatus'] =  foia_7a_df['revolverstatus'].map({
         0:"Term",
         1:"Revolver"
     })
     
-    foia_7a_2020_df['SOLDSECMRTIND'] = foia_7a_2020_df['SOLDSECMRTIND'].map({
+    foia_7a_df['SOLDSECMRTIND'] = foia_7a_df['SOLDSECMRTIND'].map({
         "Y":"Sold on the secondary market",
         "N":"Not sold on the secondary market"
     })
     
-    test_dct = {'BorrName':"Borrower name",
-    "BorrStreet":"Borrower street address",
-    "BorrCity":"Borrower city",
-    "BorrState":"Borrower state",
-    "BorrZip":"Borrower zip code",
-    "GrossApproval":"Total loan amount",
+    test_dct = {'borrname':"Borrower name",
+    "borrstreet":"Borrower street address",
+    "borrcity":"Borrower city",
+    "borrstate":"Borrower state",
+    "borrzip":"Borrower zip code",
+    "grossapproval":"Total loan amount",
     "subpgmdesc":"Subprogram description"}
     
-    new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_2020_df.columns]
-    foia_7a_2020_df.columns = new_columns
+    new_columns = [test_dct.get(column) if column in test_dct.keys() else column for column in foia_7a_df.columns]
+    foia_7a_df.columns = new_columns
 
     # map in full state names
     ssa_url = 'https://www.ssa.gov/international/coc-docs/states.html'
     state_abbrev_map = state_abrevs_getter(ssa_url)
-    foia_7a_2020_df['Borrower state'] = foia_7a_2020_df['Borrower state'].map(state_abbrev_map)
+    foia_7a_df['Borrower state'] = foia_7a_df['Borrower state'].map(state_abbrev_map)
 
-    # subset for entries that have an approval date in 2022 and remove leading and trailing whitespace from columns names
-    foia_7a_2020_df['ApprovalDate'] = pd.to_datetime(foia_7a_2020_df['ApprovalDate'], format = '%m/%d/%Y')
-    foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['ApprovalDate'] > '2021-12-31') & (foia_7a_2020_df['ApprovalDate'] < '2023-01-01')]
-    foia_7a_2020_df = foia_7a_2020_df[foia_7a_2020_df['Borrower state'] == 'TEXAS']
-    foia_7a_2020_df = foia_7a_2020_df.rename(columns = lambda x: x.strip())
+    # subset for entries that have an approval date in analysis year and remove leading and trailing whitespace from columns names
+    foia_7a_df['approvaldate'] = pd.to_datetime(foia_7a_df['approvaldate'], format = '%m/%d/%Y')
+    foia_7a_df = foia_7a_df[(foia_7a_df['approvaldate'] > year_lower_bound) & (foia_7a_df['approvaldate'] < year_upper_bound)]
+    foia_7a_df = foia_7a_df[foia_7a_df['Borrower state'] == 'TEXAS']
+    foia_7a_df = foia_7a_df.rename(columns = lambda x: x.strip())
 
     # create county column based on zipcodes column 
     zips1 = county_to_countyzip_dict(["Dallas","Collin","Tarrant"])
-    foia_7a_2020_df['County_from_Zipcode'] = foia_7a_2020_df['Borrower zip code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
+    foia_7a_df['County_from_Zipcode'] = foia_7a_df['Borrower zip code'].apply(str).apply(lambda x: zip_to_county_name(x,zips1))
 
     # create columns for census tract and county  based on borrower address
-    #foia_7a_2020_df['Full Address'] = foia_7a_2020_df['Borrower street address'] + ', ' + foia_7a_2020_df['Borrower city'] + ', ' + foia_7a_2020_df['Borrower state'] + ' ' + foia_7a_2020_df['Borrower zip code'].apply(str)
+    #foia_7adf['Full Address'] = foia_7a_df['Borrower street address'] + ', ' + foia_7a_df['Borrower city'] + ', ' + foia_7a_df['Borrower state'] + ' ' + foia_7a_df['Borrower zip code'].apply(str)
     # tqdm.pandas()
-    # foia_7a_2020_df['data_from_adr_geocode'] = foia_7a_2020_df['Full Address'].progress_apply(lambda x: get_census_geocode(x))
-    # foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['county'])
-    # foia_7a_2020_df['county_from_address'] = foia_7a_2020_df['county_from_address'] + ' County'
-    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
-    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
-    # foia_7a_2020_df['census_tract_from_address'] = foia_7a_2020_df['census_tract_from_address'].apply(format_census_tract)
-    # foia_7a_2020_df = foia_7a_2020_df.drop(columns = ['Full Address'])
+    # foia_7a_df['data_from_adr_geocode'] = foia_7a_df['Full Address'].progress_apply(lambda x: get_census_geocode(x))
+    # foia_7a_df['county_from_address'] = foia_7a_df['data_from_adr_geocode'].apply(lambda x: x['county'])
+    # foia_7a_df['county_from_address'] = foia_7a_df['county_from_address'] + ' County'
+    # foia_7a_df['census_tract_from_address'] = foia_7a_df['data_from_adr_geocode'].apply(lambda x: x['census_tract'])
+    # foia_7a_df['census_tract_from_address'] = foia_7a_df['census_tract_from_address'].fillna(value = np.nan).apply(float)/100
+    # foia_7a_df['census_tract_from_address'] = foia_7a_df['census_tract_from_address'].apply(format_census_tract)
+    # foia_7a_df = foia_7a_df.drop(columns = ['Full Address'])
 
     # create a subset dataset of the sba data that will be used to batch search for census and related geographic information 
-    foia_7a_2020_df = foia_7a_2020_df.reset_index()
-    foia_7a_2020_df['index'] = foia_7a_2020_df['index'].apply(str)
-    foia_7a_2020_df['Borrower name'] = '(' + foia_7a_2020_df['index'] +') '+  foia_7a_2020_df['Borrower name'] 
-    foia_7a_2020_df[['Borrower name','Borrower street address','Borrower city', 'Borrower state','Borrower zip code']].set_index('Borrower name').to_csv('data/sba_sample.csv')
+    foia_7a_df = foia_7a_df.reset_index()
+    foia_7a_df['index'] = foia_7a_df['index'].apply(str)
+    foia_7a_df['Borrower name'] = '(' + foia_7a_df['index'] +') '+  foia_7a_df['Borrower name'] 
+    foia_7a_df[['Borrower name','Borrower street address','Borrower city', 'Borrower state','Borrower zip code']].set_index('Borrower name').to_csv(os.path.join(data_folder,'sba_sample.csv'))
 
     # lookup census codes for batch  
     start = time.time()
-    b = census_batch_lookup('data/sba_sample.csv', 'Borrower')
+    b = census_batch_lookup(os.path.join(data_folder,'sba_sample.csv'), 'borrower')
     end = time.time()
     print('process completed in',end - start, 'seconds')
 
     # merge in new census codes to original dataset
     b = b.reset_index()
-    b['index'] = b['Borrower identifier'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
-    foia_7a_2020_df = pd.merge(foia_7a_2020_df,b, left_on = ['index'], right_on = ['index'], how = 'left')
+    b['index'] = b['borrower identifier'].str.split(')').replace('(','').apply(lambda x: x[0].replace('(',''))
+    foia_7a_df = pd.merge(foia_7a_df,b, left_on = ['index'], right_on = ['index'], how = 'left')
     
     # reformat census tract column
-    foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(float)/100
-    foia_7a_2020_df['_tract'] = foia_7a_2020_df['_tract'].apply(format_census_tract)
+    foia_7a_df['_tract'] = foia_7a_df['_tract'].apply(float)/100
+    foia_7a_df['_tract'] = foia_7a_df['_tract'].apply(format_census_tract)
 
     # map in county names 
     url = 'https://transition.fcc.gov/oet/info/maps/census/fips/fips.txt'
     fips_dict = fcc_fips_mappings_getter(url)
-    foia_7a_2020_df['_county_fips_code'] = foia_7a_2020_df['_state_fips_code'].apply(str) + foia_7a_2020_df['_county_fips_code'].apply(str)
-    foia_7a_2020_df['_county_fips_code'] = foia_7a_2020_df['_county_fips_code'].map(fips_dict['fcc_counties'])
-    foia_7a_2020_df['_state_fips_code'] = foia_7a_2020_df['_state_fips_code'].map(fips_dict['fcc_states'])
-    foia_7a_2020_df = foia_7a_2020_df.rename(columns = {'_county_fips_code':'_fips_county_name', '_state_fips_code':'_fips_state_name'})
+    foia_7a_df['_county_fips_code'] = foia_7a_df['_state_fips_code'].apply(str) + foia_7a_df['_county_fips_code'].apply(str)
+    foia_7a_df['_county_fips_code'] = foia_7a_df['_county_fips_code'].map(fips_dict['fcc_counties'])
+    foia_7a_df['_state_fips_code'] = foia_7a_df['_state_fips_code'].map(fips_dict['fcc_states'])
+    foia_7a_df = foia_7a_df.rename(columns = {'_county_fips_code':'_fips_county_name', '_state_fips_code':'_fips_state_name'})
 
     # create "county_final" column that will be based on address at default and zip codes county of NaN and then filter down to counties of focus using this new column
-    foia_7a_2020_df['county_final'] = np.where(foia_7a_2020_df['_fips_county_name'].apply(str) == 'nan', foia_7a_2020_df['County_from_Zipcode'], foia_7a_2020_df['_fips_county_name'])
-    foia_7a_2020_df = foia_7a_2020_df[(foia_7a_2020_df['county_final'] == 'Tarrant County') | (foia_7a_2020_df['county_final'] == 'Collin County') | (foia_7a_2020_df['county_final'] == 'Dallas County')]
+    foia_7a_df['county_final'] = np.where(foia_7a_df['_fips_county_name'].apply(str) == 'nan', foia_7a_df['County_from_Zipcode'], foia_7a_df['_fips_county_name'])
+    foia_7a_df = foia_7a_df[(foia_7a_df['county_final'] == 'Tarrant County') | (foia_7a_df['county_final'] == 'Collin County') | (foia_7a_df['county_final'] == 'Dallas County')]
 
-    return foia_7a_2020_df
-
-
-
+    return foia_7a_df
