@@ -362,6 +362,49 @@ def ffiec_flat_file_extractor(data_folder:str,file:str, data_dict:str, ingest_al
     data = data.rename(columns = lambda x: x.strip())
     return data
 
+
+def clean_county_code(county_code, validate_tx = False):
+    """Cleans and formats a county code string.
+    
+    Args:
+        county_code (int): The county code to be cleaned.
+
+    Returns:
+        str: The cleaned and formatted county code.
+    """
+    raw_county_code_str = str(county_code)
+    county_code_str = str(county_code)
+    county_code_str = county_code_str.replace('.0', '') # , regex=True
+    #county_code_str = county_code_str[:-3]
+    #if len(county_code_str) < 2:
+    #    county_code_str = '0' + county_code_str
+    #county_code_str += county_code_str[-3:]
+    
+    if validate_tx and ('48085' in raw_county_code_str) | ('48113' in raw_county_code_str) | ('48439' in raw_county_code_str): 
+        print(f'County code = converted from `{raw_county_code_str}` to `{county_code_str}`')   
+    
+    return county_code_str
+
+
+
+def clean_census_tract(census_trac, validate_tx = False):
+    """Cleans and formats a census tract string.
+
+    Args:
+        census_tract (str): The census tract to be cleaned.
+
+    Returns:
+        str: The cleaned and formatted census tract.
+    """
+    census_tract_raw = str(census_tract)
+    census_tract = census_tract_raw.replace('.0', '')
+    census_tract = census_tract[-6:]
+    census_tract = ''.join(census_tract[-6:-2] + '.' + census_tract[-2:])
+    census_tract = census_tract.replace('.an', 'an')
+    if validate_tx and ('48085' in census_tract_raw) | ('48113' in census_tract) | ('48439' in census_tract): 
+        print(f'Census tract = converted from `{census_tract_raw}` to `{census_tract}`')
+    return census_tract
+
 # hmda helper function
 def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',panel_file:str = 'panel',ts_file:str = 'ts')->dict[pd.core.frame.DataFrame]:
     
@@ -387,7 +430,8 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
     # read in loan/application records as df
     #lar_df = pd.read_csv(os.path.join(data_folder, 'public_lar_csv.csv'),  nrows = 2000000) 
     # mapping values for columns in Loan/Application Records(LAR)
-    file_year = data_folder.split('\\')[1]
+    # file_year = data_folder.split('\\')[1]
+    file_year = os.path.basename(data_folder)
     counter = 0
     lar_df_full = pd.DataFrame()
     for lar_df_chunk in pd.read_csv(os.path.join(data_folder, lar_file), chunksize=50000):
@@ -884,15 +928,23 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
                                                                 8:"Mortgage insurance denied",
                                                                 9:"Other"})
         
+        
+        # Cleaning and formatting county code
+        #lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[-3:]
+        #lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(str).str.replace('.0', '', regex=True).str[:-3].apply(lambda x: '0' + x if len(x) < 2 else x) + lar_df_chunk['county_code'].apply(str).str.replace('.0', '', regex=True).str[-3:]
+        #global k_county_code
+        #k_county_code = 0
+        lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(clean_county_code)
+        
         # subset for texas and counties of interest
-        lar_df_chunk['county_code'] = lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[:-3].apply(lambda x: '0'+ x if len(x)<2 else x) + lar_df_chunk['county_code'].apply(str).str.replace('.0','').str[-3:]
+        # Collin County = 48085, Dallas County = 48113, Tarrant County = 48439
         lar_df_chunk = lar_df_chunk[lar_df_chunk['state_code'] == 'TX']
         lar_df_chunk = lar_df_chunk[(lar_df_chunk['county_code'] == '48439') | (lar_df_chunk['county_code'] == '48085') | (lar_df_chunk['county_code'] == '48113')]
         
         # concatenate chunks 
         lar_df_full = pd.concat([lar_df_full, lar_df_chunk])
         counter += 1
-        print(str(counter) + "/322")
+        print(str(counter) + "/??")
 
     # map in full state names
     ssa_url = 'https://www.ssa.gov/international/coc-docs/states.html'
@@ -909,7 +961,9 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
     lar_df_full = lar_df_full.astype({"derived_msa_md":str, "census_tract":str})
 
     # reformat the census tract column and subset for records in TEXAS and counties of interest and  stipping whitespace from column names
-    lar_df_full['census_tract'] = lar_df_full['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
+    lar_df_full['census_tract_full'] = lar_df_full['census_tract']
+    #lar_df_full['census_tract'] = lar_df_full['census_tract'].str.replace('.0','').str[-6:].apply(lambda x: ''.join(x[-6:-2]+'.'+x[-2:])).str.replace('.an', 'an')
+    lar_df_full['census_tract'] = lar_df_full['census_tract'].apply(clean_census_tract)
     #lar_df_full = lar_df_full[lar_df_full['state_code'] == 'TEXAS']
     #lar_df_full = lar_df_full[(lar_df_full['county_code'] == 'Tarrant County') | (lar_df_full['county_code'] == 'Collin County') | (lar_df_full['county_code'] == 'Dallas County')]
     lar_df_full = lar_df_full.rename(columns = lambda x: x.strip())
