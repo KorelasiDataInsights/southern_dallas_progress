@@ -397,7 +397,7 @@ def clean_census_tract(census_tract, validate_tx = False):
         str: The cleaned and formatted census tract.
     """
     if not census_tract:
-        return '0000NAN'
+        return '0000NAN_tract'
     census_tract_raw = str(census_tract)
     census_tract = census_tract_raw.replace('.0', '')
     census_tract = census_tract[-6:]
