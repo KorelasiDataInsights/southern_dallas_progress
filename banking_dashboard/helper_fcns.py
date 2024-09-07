@@ -32,7 +32,7 @@ def fmt_respondent_id(respondent_id_val):
 def format_census_tract(tract_number):
     return '%07.2F'% tract_number
 
-def state_abrevs_getter(ssa_url:str)->dict[str:str]:
+def state_abrevs_getter(ssa_url: str)->dict[str: str]:
     """Used to download and convert each state abbreviation and its full name into a dictionary which will be the output.
     Args: 
         url: social security administration website
@@ -47,7 +47,7 @@ def state_abrevs_getter(ssa_url:str)->dict[str:str]:
         state_abbrevs[state.text.strip().split()[-1]] = ' '.join(state.text.strip().split()[:-1])
     return state_abbrevs
 
-def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
+def fcc_fips_mappings_getter(url: str)->dict[str: dict[str: str]]:
     """Used to download and convert county and state codes from fcc website into a python dictionary.
     
     Args:
@@ -67,7 +67,7 @@ def fcc_fips_mappings_getter(url:str)->dict[str:dict[str:str]]:
             counties_fips_dict[''.join(re.findall(r'[0-9]+',area_and_fips))] = ' '.join(re.findall(r'[a-zA-Z]+',area_and_fips))
     return {'fcc_states':state_fips_dict,'fcc_counties':counties_fips_dict}
 
-def get_zip_codes(county_name:str, abbrev_state:str = "TX")->list[str]:
+def get_zip_codes(county_name: str, abbrev_state: str = "TX")->list[str]:
     """Used to find all unique zipcodes associates with a given county and state.
 
     Args:
@@ -92,7 +92,7 @@ def get_zip_codes(county_name:str, abbrev_state:str = "TX")->list[str]:
     except:
         return None
 
-def county_to_countyzip_dict(county_to_search:list[str])->dict[str:set]:
+def county_to_countyzip_dict(county_to_search: list[str])->dict[str: set]:
     """Used to create a dictionary of counties with zipcodes. This only has to be run once so the later mapping runs faster.
 
     Args:
@@ -107,7 +107,7 @@ def county_to_countyzip_dict(county_to_search:list[str])->dict[str:set]:
         county_zips_dct[county_i] = zips_for_county
     return county_zips_dct   
 
-def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
+def zip_to_county_name(zpcode: str, zips_dct: dict[str: set])->str:
     """Used to return name of county associated with a given zip code.
 
     Args:
@@ -126,7 +126,7 @@ def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
     else: 
         return "Other"
 
-# def get_census_geocode(address_str:str)->dict[str:str]:
+# def get_census_geocode(address_str: str)->dict[str: str]:
 #     """Takes in an address and returns the Census Tract, County and State associated with it if available.
 
 #     Args: 
@@ -163,7 +163,7 @@ def zip_to_county_name(zpcode:str,zips_dct:dict[str:set])->str:
 #           'census_tract': None,
 #       }
     
-def census_batch_lookup(filename:str, srch_level:str):
+def census_batch_lookup(filename: str, srch_level: str):
 
   DEFAULT_BENCHMARK = os.environ.get('CENSUS_GEOCODER_BENCHMARK', 'CURRENT')
   DEFAULT_VINTAGE = os.environ.get('CENSUS_GEOCODER_VINTAGE', 'CURRENT')
@@ -203,7 +203,7 @@ def census_batch_lookup(filename:str, srch_level:str):
   return out_df
 
 # census tract helper function
-def census_data_ingester(census_file_common_string:str)-> pd.core.frame.DataFrame:
+def census_data_ingester(census_file_common_string: str)-> pd.core.frame.DataFrame:
     """"Takes in url and downloads csv from census tract website. The downloaded csv is then read in as a dataframe 
     and transformed into a format that can be used for join on future tract years where 'tract','county',and 'state'
     are the composite primary key.
@@ -242,7 +242,7 @@ def census_data_ingester(census_file_common_string:str)-> pd.core.frame.DataFram
     return census_df
 
 # ffiec helper function
-def ffiec_flat_file_extractor(data_folder:str,file:str, data_dict:str, ingest_all=False)->pd.core.frame.DataFrame:
+def ffiec_flat_file_extractor(data_folder: str, file: str, data_dict: str, ingest_all=False)->pd.core.frame.DataFrame:
     """Used to extract csv files from ffiec website and convert into pandas dataframe.
     
     Args:
@@ -343,7 +343,7 @@ def ffiec_flat_file_extractor(data_folder:str,file:str, data_dict:str, ingest_al
                 "Previous year CRA distressed criteria",
                 "Previous year CRA underserved criterion",
                 "Meets at least one of current or previous year's CRA distressed/underserved tract criteria?"]
-    alphanum_to_str_dict = {an_field:str for an_field in alphanumeric_field_list} 
+    alphanum_to_str_dict = {an_field: str for an_field in alphanumeric_field_list} 
     data = data.astype(alphanum_to_str_dict) # casting aplhanumeric fields to strings
     numeric_field_list = list(data.loc[:,~data.columns.isin(alphanumeric_field_list)].columns)
     numeric_to_float_dict = {n_field:float for n_field in numeric_field_list} 
@@ -387,7 +387,7 @@ def clean_county_code(county_code, validate_tx = False):
 
 
 
-def clean_census_tract(census_trac, validate_tx = False):
+def clean_census_tract(census_tract, validate_tx = False):
     """Cleans and formats a census tract string.
 
     Args:
@@ -396,6 +396,8 @@ def clean_census_tract(census_trac, validate_tx = False):
     Returns:
         str: The cleaned and formatted census tract.
     """
+    if not census_tract:
+        return '0000NAN'
     census_tract_raw = str(census_tract)
     census_tract = census_tract_raw.replace('.0', '')
     census_tract = census_tract[-6:]
@@ -406,7 +408,11 @@ def clean_census_tract(census_trac, validate_tx = False):
     return census_tract
 
 # hmda helper function
-def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',panel_file:str = 'panel',ts_file:str = 'ts')->dict[pd.core.frame.DataFrame]:
+def hmda_data_ingester(url: str,
+                       data_folder: str = 'data',
+                       lar_file: str = 'lar',
+                       panel_file: str = 'panel',
+                       ts_file: str = 'ts') -> dict[pd.core.frame.DataFrame]:
     
     """Used to read in all necessary .csv files from HMDA website and return a dictionary containing all of the read in
     files.
@@ -958,7 +964,7 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
     lar_df_full['county_code'] = lar_df_full['county_code'].map(fips_dict['fcc_counties'])
 
     # recast data types
-    lar_df_full = lar_df_full.astype({"derived_msa_md":str, "census_tract":str})
+    lar_df_full = lar_df_full.astype({"derived_msa_md": str, "census_tract": str})
 
     # reformat the census tract column and subset for records in TEXAS and counties of interest and  stipping whitespace from column names
     lar_df_full['census_tract_full'] = lar_df_full['census_tract']
@@ -1008,7 +1014,7 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
     #                                                     # not look like a legitamate msa_md code
 
     # recast data types and removing whitespace from column names 
-    # msamd_df = msamd_df.astype({"msa_md":str})
+    # msamd_df = msamd_df.astype({"msa_md": str})
     # msamd_df = msamd_df.rename(columns = lambda x: x.strip())    
         
     # arid_2017 = pd.read_csv('arid2017_to_lei_xref_csv.csv') # not using for the moment because not joining in previous 
@@ -1019,7 +1025,7 @@ def hmda_data_ingester(url:str,data_folder:str = 'data',lar_file:str = 'lar',pan
     return hmda_dict
 
 # cra helper function      
-def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->dict[str:pd.core.frame.DataFrame]:
+def cra_data_ingester(file: str, data_folder: str = 'data', file_lst: list = []) -> dict[str: pd.core.frame.DataFrame]:
     """Used to read in cra .dat fwf files from directory(both agg and discl files need to be unzipped in directory where this function is being run from).
     
     Args:
@@ -1264,7 +1270,7 @@ def cra_data_ingester(file:str, data_folder:str = 'data', file_lst:list = [])->d
             df_dict[i] = pd.read_fwf(os.path.join(data_folder, i), widths = fwf_dimensions_dict[i][0], header = None, names = fwf_dimensions_dict[i][1])
     return df_dict
     
-def zero_adder(fips_code:str)->str:
+def zero_adder(fips_code: str)->str:
     """Takes in a county code string and add zeroes to make it accuarte  to the fcc website county codes.
     
     Args:
@@ -1280,7 +1286,7 @@ def zero_adder(fips_code:str)->str:
     else:
         return fips_code
 
-def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
+def cra_mapping_function(df_dictionary: dict[str: pd.core.frame.DataFrame])->dict[str: pd.core.frame.DataFrame]:
     """Used to map full descriptions to data entires that use codes as place holders in cra data.
     
     Args:
@@ -2090,7 +2096,8 @@ def cra_mapping_function(df_dictionary:dict[str:pd.core.frame.DataFrame])->dict[
 
     return df_dictionary
 
-def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict:dict[str:dict[str:str]])->dict[str:pd.core.frame.DataFrame]:
+def state_county_fips_mapper(df_dict: dict[pd.core.frame.DataFrame],
+                             fcc_fips_dict: dict[str: dict[str: str]]) -> dict[str: pd.core.frame.DataFrame]:
     """Used to map state and county names to their corresponding fips codes in cra data.
     
     Args:
@@ -2115,7 +2122,7 @@ def state_county_fips_mapper(df_dict:dict[pd.core.frame.DataFrame],fcc_fips_dict
             df_dict[i] = df_dict[i].drop(columns = ['State_Name','County_Name'], axis = 1)
     return df_dict
 
-def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core.frame.DataFrame]:
+def thousands_adder(df_dict: dict[str: pd.core.frame.DataFrame]) -> dict[str: pd.core.frame.DataFrame]:
     """" Multiplies all fields in cra data that contain total loan amounts by 1000, subsets all files in dictionary for disclosure 1-1 and disclosure 6 datasets, then subsets those datasets for entires in Texas and in counties of focus.
         
     Args:
@@ -2197,7 +2204,7 @@ def thousands_adder(df_dict:dict[str:pd.core.frame.DataFrame])->dict[str:pd.core
     return final_cra_dict
 
 # fdic helper function
-def changec_label_adder(data_folder:str,file_name:str)->dict[str:str]:
+def changec_label_adder(data_folder: str,file_name: str)->dict[str: str]:
     """Used to create dictionary of old column names as the key and new column names as the value using the institutions definitions file.
     
     Args: 
@@ -2217,7 +2224,10 @@ def changec_label_adder(data_folder:str,file_name:str)->dict[str:str]:
     col_name_replace_map['TRACT'] = 'Institutions with reportable fiduciary related service'
     return col_name_replace_map  
 
-def fdic_institutions_ingester(data_folder:str,institutions_file_name:str, col_replace_map:dict[str:str], analysis_yr:str)->pd.core.frame.DataFrame:
+def fdic_institutions_ingester(data_folder: str,
+                               institutions_file_name: str, 
+                               col_replace_map: dict[str: str], 
+                               analysis_yr: str) -> pd.core.frame.DataFrame:
     """Used to read in institution data for those created on or before 12/31/analysis_year and are in dallas, collins or tarrant county.
     
     Args: 
@@ -2282,7 +2292,7 @@ def fdic_institutions_ingester(data_folder:str,institutions_file_name:str, col_r
           "89":"Noninsured insurance company"})
     institutions_df['Conservatorship'] = institutions_df['Conservatorship'].map({1:"Yes",0:"No"})
     institutions_df['CSA Area Flag'] = institutions_df['CSA Area Flag'].map({1:"Yes",0:"No"})
-    institutions_df = institutions_df.astype({'Federal Reserve ID Number':str})
+    institutions_df = institutions_df.astype({'Federal Reserve ID Number': str})
     institutions_df['Federal Reserve ID Number'] = institutions_df['Federal Reserve ID Number'].map({"1":"Boston",
                                                                                                      "2":"New York",
                                                                                                      "3":"Philadelphia",
@@ -2332,7 +2342,7 @@ def fdic_institutions_ingester(data_folder:str,institutions_file_name:str, col_r
     institutions_df = institutions_df.rename(columns = lambda x: x.strip())
     return institutions_df
 
-def fdic_locations_mapper(data_folder:str,locations_def_file:str, locations_file:str, analysis_yr:str)->pd.core.frame.DataFrame:
+def fdic_locations_mapper(data_folder: str,locations_def_file: str, locations_file: str, analysis_yr: str)->pd.core.frame.DataFrame:
     """Used to read in locations data for those created on or before 12/31/analysis_year and are in dallas, collins or tarrant county.
     
     Args: 
@@ -2410,7 +2420,9 @@ def fdic_locations_mapper(data_folder:str,locations_def_file:str, locations_file
     return final_fdic_locations_df
 
 # sba helper function
-def sba_data_ingester(url:str,analysis_yr:str,data_folder:str)->pd.core.frame.DataFrame:  
+def sba_data_ingester(url: str,
+                      analysis_yr: str,
+                      data_folder: str) -> pd.core.frame.DataFrame:  
     """Takes in url of sba FOIA - 7(a) csv file, downloads it, cleans it and retuns a pandas dataframe of the file.
     
     Args:
