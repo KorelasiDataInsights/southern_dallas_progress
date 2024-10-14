@@ -111,9 +111,18 @@ def export_to_excel(df, out_file_path, sheet_name="data", startcol=0, startrow=0
 
 
 
-def bin_category(df:pd.core.frame.DataFrame, cols_to_check:list, threshold:int, normalize_inpt:bool = False, cnt_or_prp = 'count'):
+def bin_category(df:pd.core.frame.DataFrame, 
+                 cols_to_check:list, 
+                 threshold:int, 
+                 normalize_inpt:bool = False, 
+                 cnt_or_prp:str = 'count',
+                 verbose:bool = False) -> pd.core.frame.DataFrame:
     for category_col in cols_to_check:
         temp_df = df[category_col].value_counts(normalize = normalize_inpt).reset_index()
+        # Rename second column to cnt_or_prp
+        temp_df = temp_df.rename(columns = {'index':category_col, category_col:cnt_or_prp})
+        if verbose: 
+            print(temp_df.head(5))
         replace_map = {val_under_threshold:'Other' for val_under_threshold in temp_df[temp_df[cnt_or_prp] < threshold][category_col]}
         if len(replace_map) > 1:
             df[category_col] = df[category_col].replace(replace_map)
